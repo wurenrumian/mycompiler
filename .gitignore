@@ -1,0 +1,44 @@
+# 构建目录
+/build/
+/build/
+cmake-build-*/
+
+# 编译输出
+*.o
+*.obj
+*.exe
+*.out
+cmm_compiler
+cmm_compiler.exe
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+
+# 自动生成的文件
+src/lex.yy.c
+src/cmm.tab.c
+src/cmm.tab.h
+
+# 日志/临时文件
+*.log
+*.tmp
+
+prompts/
+compiler-example/
+.opencode/
+**/todo.md
+opencode.jsonc
+AGENTS.md
+.roo/
+.vscode/
