@@ -216,6 +216,7 @@ extern char *yytext;
 
 #ifdef YY_HEADER_EXPORT_START_CONDITIONS
 #define INITIAL 0
+#define STRING 1
 
 #endif
 
@@ -469,9 +470,9 @@ extern int yylex (void);
 #undef yyTABLES_NAME
 #endif
 
-#line 66 "src/cmm.l"
+#line 82 "src/cmm.l"
 
 
-#line 475 "lex.yy.h"
+#line 476 "lex.yy.h"
 #undef yyIN_HEADER
 #endif /* yyHEADER_H */

@@ -1,171 +1,130 @@
-# C-- 编译器
+# CMM Compiler - 词法分析与语法分析
 
-一个用 C++ 实现的 C-- 语言编译器，使用 flex/bison 进行词法和语法分析，支持中间表示（IR）和 MIPS 汇编代码生成。
+本项目实现 CMM 语言的词法分析器（Homework 1）和语法分析器（Homework 2），基于 SysY 文法标准。
 
 ## 项目结构
 
 ```
-cmm_compiler/
-├── CMakeLists.txt          # CMake 构建配置
-├── Makefile                # 简易 Makefile（备用）
-├── configure.sh            # 环境检测脚本
-├── README.md               # 项目说明
-├── .gitignore              # Git 忽略文件
-│
+.
+├── CMakeLists.txt          # 构建配置
+├── testfile.txt            # 测试输入文件
+├── build_lexer.bat         # Homework 1 构建脚本
+├── build_parser.bat        # Homework 2 构建脚本
 ├── include/
-│   └── common.h            # 公共头文件（SourceLocation、字符工具）
-│
+│   ├── common.h           # 通用工具（SourceLocation、char_util）
+│   ├── Stream.h           # 通用流模板类（Homework 1）
+│   ├── Token.h            # Token 定义（Homework 1）
+│   └── Lexer.h            # 词法分析器类（Homework 1）
 ├── src/
-│   ├── cmm.l               # flex 词法规则
-│   ├── cmm.y               # bison 语法定义
-│   ├── main.cpp            # 主程序入口
-│   │
-│   ├── symtab/             # 符号表模块
-│   │   ├── Symbol.h
-│   │   ├── SymbolTable.h
-│   │   └── SymbolTable.cpp
-│   │
-│   ├── ir/                 # 中间表示模块
-│   │   ├── Quad.h
-│   │   └── IRGenerator.h
-│   │
-│   └── codegen/            # 代码生成模块
-│       ├── CodeGen.h
-│       └── MIPSAssembler.h
-│
-├── examples/               # 示例 C-- 源文件
-│   ├── hello.cmm
-│   └── test_expr.cmm
-│
-└── build/                  # 构建输出目录（gitignore）
+│   ├── cmm.l              # Flex 词法分析器（Homework 2）
+│   ├── cmm.y              # Bison 语法分析器（Homework 2）
+│   ├── lexer_main.cpp     # Homework 1 主程序
+│   ├── Lexer.cpp          # Homework 1 词法分析器实现
+│   ├── StreamBuffer.cpp   # Homework 1 流缓冲区实现
+│   └── Token.cpp          # Homework 1 Token 工具实现
+└── homework/
+    ├── homework1.md       # Homework 1 要求
+    └── homework2.md       # Homework 2 要求
 ```
 
-## 环境要求
+## 快速开始
 
-- **g++**: 支持 C++17（g++ 7+）
-- **flex**: >= 2.6
-- **bison**: >= 3.0
-- **CMake**: >= 3.10（可选，推荐）
+### Homework 1: 词法分析器
 
-### 安装依赖
-
-**Ubuntu/Debian:**
+**构建：**
 ```bash
-sudo apt update
-sudo apt install build-essential flex bison cmake
+build_lexer.bat
 ```
 
-**macOS:**
+**运行：**
 ```bash
-brew install gcc flex bison cmake
+lexer testfile.txt
 ```
 
-**Windows (MSYS2):**
+**输出：** `output.txt`，格式为 `类别码  lexeme`
+
+### Homework 2: 语法分析器
+
+**构建：**
 ```bash
-pacman -S mingw-w64-x86_64-gcc flex bison cmake make
+build_parser.bat
 ```
 
-## 构建步骤
-
-### 方式一：使用 CMake（推荐）
-
-**MSYS2 MinGW 终端:**
+**运行：**
 ```bash
-# 1. 创建构建目录
-mkdir build && cd build
-
-# 2. 配置项目（使用 MinGW Makefiles 生成器）
-cmake .. -G "MinGW Makefiles" -DCMAKE_CXX_STANDARD=17
-
-# 3. 编译
-mingw32-make -j4
-
-# 4. 运行
-./cmm_compiler.exe ../examples/hello.cmm
+parser testfile.txt
 ```
 
-**Windows 命令行（使用构建脚本）:**
-```batch
-build_msys2.bat
-```
+**输出：** `output.txt`，包含语法成分标签（如 `<Stmt>`、`<Exp>` 等）
 
-### 方式二：使用 Makefile
+## 实现说明
 
-**MSYS2 MinGW 终端:**
-```bash
-make -j4
-```
+### Homework 1 - 词法分析器
 
-**Windows 命令行（使用构建脚本）:**
-```batch
-build_simple.bat
-```
+- **核心类：** [`Stream<char>`](include/Stream.h) - 通用流模板类，支持 `next()`、`peek()`、`unget()`
+- **Token 定义：** [`Token`](include/Token.h) - 包含类型、原始字符串、位置信息
+- **词法分析：** [`Lexer`](include/Lexer.h) - 流式处理，识别所有类别码
 
-### 方式三：简易手动构建
+**特性：**
+- 支持所有保留字、运算符、界符
+- 整数常量、标识符、格式字符串
+- 位置追踪（行号、列号）
+- 可配置输出开关
 
-**MSYS2 MinGW 终端:**
-```bash
-# 生成词法/语法分析器
-flex -o src/lex.yy.c src/cmm.l
-bison -d -o src/cmm.tab.c src/cmm.y
+### Homework 2 - 语法分析器
 
-# 编译
-g++ -std=c++17 -Wall -Wextra -Iinclude -I. -c src/main.cpp -o src/main.o
-g++ -std=c++17 -Wall -Wextra -Iinclude -I. -c src/symtab/SymbolTable.cpp -o src/symtab/SymbolTable.o
-g++ -std=c++17 -Wall -Wextra -Iinclude -I. -c src/lex.yy.c -o src/lex.yy.o
-g++ -std=c++17 -Wall -Wextra -Iinclude -I. -c src/cmm.tab.c -o src/cmm.tab.o
+- **词法分析：** 基于 Flex 的 [`cmm.l`](src/cmm.l)
+- **语法分析：** 基于 Bison 的 [`cmm.y`](src/cmm.y)，实现完整 SysY 文法
+- **输出：** 仅输出非终结符标签（除 BlockItem、Decl、BType 外）
 
-# 链接
-g++ -o cmm_compiler.exe src/main.o src/lex.yy.o src/cmm.tab.o src/symtab/SymbolTable.o
-```
+**文法覆盖：**
+- CompUnit, Decl, BType, DeclDef
+- InitVal, InitValList
+- FuncDef, FuncFParams, FuncFParam
+- Block, BlockItemList, BlockItem
+- Stmt, Exp, AddExp, MulExp, UnaryExp, PrimaryExp
+- LVal, FuncRParams, ConstExp
 
-## 运行测试
+**关键特性：**
+- 左递归实现（AddExp、MulExp 等）
+- 重复结构父节点只输出一次
+- 通过 `ENABLE_PARSER_OUTPUT` 控制输出
+
+## 编译要求
+
+- C++17 编译器（g++ 8.1.0+）
+- CMake 3.15+
+- Flex 2.6+
+- Bison 3.0+
+
+## 测试
+
+使用提供的 `testfile.txt` 进行测试，或创建自己的测试文件。
 
 ```bash
-# 从标准输入读取
-echo "int main() { return 0; }" | ./cmm_compiler
+# Homework 1
+lexer testfile.txt
 
-# 从文件读取
-./cmm_compiler examples/hello.cmm
+# Homework 2
+parser testfile.txt
 ```
 
-## 开发阶段
+查看 `output.txt` 检查结果。
 
-- **Phase 1**: 环境搭建与基础框架（当前）
-- **Phase 2**: 词法+语法分析（语义动作）
-- **Phase 3**: 符号表+中间表示（IR 生成）
-- **Phase 4**: 代码生成（MIPS 汇编）
+## 注意事项
 
-## 示例文件
+1. **提交内容：**
+   - Homework 1：词法分析器源文件（`.cpp`/`.h`）
+   - Homework 2：语法分析器生成的源文件（`.cpp`/`.h`），不含 `.l`/`.y`
 
-### hello.cmm
-```c
-int main() {
-    return 0;
-}
-```
+2. **输出控制：**
+   - Homework 1：通过 `ENABLE_OUTPUT` 宏控制
+   - Homework 2：通过 `ENABLE_PARSER_OUTPUT` 宏控制
 
-### test_expr.cmm
-```c
-int main() {
-    int a = 1 + 2 * 3;
-    float b = 3.14;
-    return a;
-}
-```
+3. **兼容性：** 评测环境为 gcc/g++ 8.1.0，请确保代码兼容。
 
-## 故障排除
+## 开发日志
 
-| 问题                                    | 原因           | 解决方案                                                      |
-| --------------------------------------- | -------------- | ------------------------------------------------------------- |
-| `flex: command not found`               | 未安装 flex    | 安装 flex                                                     |
-| `bison: command not found`              | 未安装 bison   | 安装 bison                                                    |
-| CMake 找不到 FLEX/BISON                 | 未设置路径     | `cmake .. -DFLEX_EXECUTABLE=/path/to/flex`                    |
-| 链接错误 `undefined reference to yylex` | 未链接 flex 库 | 确保 `target_link_libraries(cmm_compiler PRIVATE flex bison)` |
-| 编译错误：`'std::variant' not found`    | C++ 版本过低   | 升级 g++ 或使用 `-std=c++17`                                  |
-
-详细问题请参考 [phase1.md](phase1.md) 的"风险控制与常见问题"章节。
-
-## 许可证
-
-MIT License
+- 2026-03-05: 完成 Homework 1 和 Homework 2 实现
+  - Homework 1: 通用流容器 + 词法分析器
+  - Homework 2: Flex/Bison 语法分析器，符合 SysY 文法

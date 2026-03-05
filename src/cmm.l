@@ -9,13 +9,20 @@
 
 #define YYSTYPE YYSTYPE
 extern YYSTYPE yylval;
+extern int yylineno;
 %}
+
+%x STRING
+
 %%
+
 "if"            { return IF; }
 "else"          { return ELSE; }
 "while"         { return WHILE; }
 "for"           { return FOR; }
 "return"        { return RETURN; }
+"break"         { return BREAK; }
+"continue"      { return CONTINUE; }
 "int"           { return INT_TYPE; }
 "float"         { return FLOAT_TYPE; }
 "void"          { return VOID_TYPE; }
@@ -36,14 +43,23 @@ extern YYSTYPE yylval;
 "||"            { return OR; }
 "!"             { return NOT; }
 
-"("             { return LPAREN; }
-")"             { return RPAREN; }
+"("             { return LPARENT; }
+")"             { return RPARENT; }
 "{"             { return LBRACE; }
 "}"             { return RBRACE; }
-"["             { return LBRACKET; }
-"]"             { return RBRACKET; }
+"["             { return LBRACK; }
+"]"             { return RBRACK; }
 ";"             { return SEMICOLON; }
 ","             { return COMMA; }
+
+\"              { BEGIN(STRING); yylval.sval = (char*)malloc(1024); *yylval.sval = '\0'; }
+<STRING>\"      { BEGIN(INITIAL); return STRCON; }
+<STRING>\\n     { strcat(yylval.sval, "\n"); }
+<STRING>\\t     { strcat(yylval.sval, "\t"); }
+<STRING>\\\"    { strcat(yylval.sval, "\""); }
+<STRING>\\      { strcat(yylval.sval, "\\"); }
+<STRING>\n      { std::cerr << "Error: newline in string literal" << std::endl; BEGIN(INITIAL); }
+<STRING>.       { char temp[2] = { yytext[0], '\0' }; strcat(yylval.sval, temp); }
 
 [0-9]+          {
                     yylval.ival = std::stoi(std::string(yytext));
