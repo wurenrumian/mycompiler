@@ -21,9 +21,15 @@ std::shared_ptr<Symbol> SymbolTable::lookup(const std::string &name) const
 std::shared_ptr<Symbol> SymbolTable::create_variable(const std::string &name, DataType type, int size)
 {
 	// Phase 2 实现：创建 Symbol，计算 offset（基于 current_offset）
+	// 先检查当前作用域是否已存在同名符号
+	auto it = symbols_.find(name);
+	if (it != symbols_.end())
+	{
+		return it->second; // 返回已存在的符号
+	}
 	auto sym = std::make_shared<Symbol>(name, SymbolKind::Variable, type);
 	sym->size = size;
-	// sym->offset = -current_offset() - size;  // 栈向下增长
+	current_offset_ += size; // 更新偏移量
 	insert(sym);
 	return sym;
 }

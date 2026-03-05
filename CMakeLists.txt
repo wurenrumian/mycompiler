@@ -67,3 +67,44 @@ if(FLEX_FOUND AND BISON_FOUND)
     endif()
 endif()
 
+# ============================================
+# 测试目标
+# ============================================
+
+# 测试公共功能（common.h）
+add_executable(test_common tests/test_common.cpp)
+target_include_directories(test_common PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_compile_definitions(test_common PRIVATE YY_NO_UNISTD_H)
+add_test(NAME test_common COMMAND test_common)
+
+# 测试 Symbol 结构
+add_executable(test_symbol tests/test_symbol.cpp)
+target_include_directories(test_symbol PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_compile_definitions(test_symbol PRIVATE YY_NO_UNISTD_H)
+add_test(NAME test_symbol COMMAND test_symbol)
+
+# 测试 SymbolTable（需要链接 SymbolTable.cpp）
+add_executable(test_symbol_table
+    tests/test_symbol_table.cpp
+    src/symtab/SymbolTable.cpp
+)
+target_include_directories(test_symbol_table PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_compile_definitions(test_symbol_table PRIVATE YY_NO_UNISTD_H)
+add_test(NAME test_symbol_table COMMAND test_symbol_table)
+
+# 运行所有测试的便捷目标
+add_custom_target(run_all_tests
+    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+    DEPENDS test_common test_symbol test_symbol_table
+    COMMENT "Running all tests..."
+)
+
