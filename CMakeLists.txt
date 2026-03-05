@@ -11,9 +11,23 @@ else()
     add_compile_options(-Wall -Wextra)
 endif()
 
+# 启用测试
+enable_testing()
+
 # 查找 flex/bison
 find_package(FLEX REQUIRED)
 find_package(BISON REQUIRED)
+
+# 手动设置 FLEX 头文件路径（MSYS2 MinGW 环境）
+if(NOT FLEX_INCLUDE_DIR)
+    # 尝试 mingw64 路径
+    if(EXISTS "D:/msys64/mingw64/include/FlexLexer.h")
+        set(FLEX_INCLUDE_DIR "D:/msys64/mingw64/include")
+    else()
+        # 回退到 usr 路径
+        set(FLEX_INCLUDE_DIR "D:/msys64/usr/include")
+    endif()
+endif()
 
 # 生成词法/语法分析器
 FLEX_TARGET(CMMLexer src/cmm.l ${CMAKE_CURRENT_BINARY_DIR}/lex.yy.cc
@@ -35,7 +49,7 @@ target_include_directories(cmm_compiler PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_BINARY_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${FLEX_INCLUDE_DIRS}
+    ${FLEX_INCLUDE_DIR}
 )
 
 # Windows 兼容性
@@ -52,3 +66,4 @@ if(FLEX_FOUND AND BISON_FOUND)
         target_link_libraries(cmm_compiler PRIVATE ${BISON_LIBRARIES})
     endif()
 endif()
+
