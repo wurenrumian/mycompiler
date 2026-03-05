@@ -6,56 +6,71 @@
 
 ```
 .
-├── CMakeLists.txt          # 构建配置
-├── testfile.txt            # 测试输入文件
-├── build_lexer.bat         # Homework 1 构建脚本
-├── build_parser.bat        # Homework 2 构建脚本
-├── include/
+├── CMakeLists.txt          # CMake 构建配置
+├── Makefile                # 简易 Makefile（备用）
+├── testfile.txt            # 测试输入文件（示例）
+├── README.md               # 项目说明
+├── OPERATIONS.md           # 详细操作文档
+├── include/                # 头文件目录
 │   ├── common.h           # 通用工具（SourceLocation、char_util）
 │   ├── Stream.h           # 通用流模板类（Homework 1）
-│   ├── Token.h            # Token 定义（Homework 1）
-│   └── Lexer.h            # 词法分析器类（Homework 1）
-├── src/
+│   ├── Token.h            # Token 定义
+│   └── Lexer.h            # 词法分析器接口
+├── src/                    # 源文件目录
 │   ├── cmm.l              # Flex 词法分析器（Homework 2）
 │   ├── cmm.y              # Bison 语法分析器（Homework 2）
 │   ├── lexer_main.cpp     # Homework 1 主程序
-│   ├── Lexer.cpp          # Homework 1 词法分析器实现
-│   ├── StreamBuffer.cpp   # Homework 1 流缓冲区实现
-│   └── Token.cpp          # Homework 1 Token 工具实现
-└── homework/
-    ├── homework1.md       # Homework 1 要求
-    └── homework2.md       # Homework 2 要求
+│   ├── Lexer.cpp          # 词法分析器实现
+│   ├── parser_main.cpp    # Homework 2 主程序
+│   ├── Token.cpp          # Token 工具实现
+│   └── yylex.cpp          # Flex/Bison 桥接文件
+├── tests/                  # 单元测试
+│   ├── test_stream.cpp    # Stream 类测试
+│   ├── test_token.cpp     # Token 类测试
+│   ├── test_lexer.cpp     # Lexer 类测试
+│   └── test_parser.cpp    # Parser 类测试
+└── build/                 # 构建目录（自动生成）
+    ├── lexer              # Homework 1 可执行文件
+    ├── parser             # Homework 2 可执行文件
+    ├── output.txt         # 程序输出
+    └── (其他构建文件)
 ```
 
 ## 快速开始
 
-### Homework 1: 词法分析器
+### 方法一：使用 CMake（推荐）
 
 **构建：**
 ```bash
-build_lexer.bat
+mkdir build && cd build
+cmake ..                # Windows: cmake -G "MinGW Makefiles" ..
+make -j4                # 或: cmake --build .
 ```
 
-**运行：**
+**运行 Homework 1（词法分析器）：**
 ```bash
-lexer testfile.txt
+cd build
+./lexer ../testfile.txt
 ```
 
-**输出：** `output.txt`，格式为 `类别码  lexeme`
+**运行 Homework 2（语法分析器）：**
+```bash
+cd build
+./parser ../testfile.txt
+```
 
-### Homework 2: 语法分析器
+输出文件：`build/output.txt`
+
+### 方法二：使用 Makefile（备用）
 
 **构建：**
 ```bash
-build_parser.bat
+make                    # 同时构建 lexer 和 parser
+make lexer              # 仅构建词法分析器
+make parser             # 仅构建语法分析器
 ```
 
-**运行：**
-```bash
-parser testfile.txt
-```
-
-**输出：** `output.txt`，包含语法成分标签（如 `<Stmt>`、`<Exp>` 等）
+**运行：**（同方法一）
 
 ## 实现说明
 
@@ -93,7 +108,7 @@ parser testfile.txt
 ## 编译要求
 
 - C++17 编译器（g++ 8.1.0+）
-- CMake 3.15+
+- CMake 3.15+ 或 GNU Make
 - Flex 2.6+
 - Bison 3.0+
 
@@ -102,14 +117,36 @@ parser testfile.txt
 使用提供的 `testfile.txt` 进行测试，或创建自己的测试文件。
 
 ```bash
-# Homework 1
-lexer testfile.txt
+# 方法一：CMake
+cd build
+./lexer ../testfile.txt
+./parser ../testfile.txt
 
-# Homework 2
-parser testfile.txt
+# 方法二：Make
+make test_lexer
+make test_parser
 ```
 
 查看 `output.txt` 检查结果。
+
+## 运行单元测试
+
+### 使用 CMake
+
+```bash
+cd build
+ctest --output-on-failure    # 运行所有测试
+make run_all_tests           # 或使用自定义目标
+```
+
+### 使用 Makefile
+
+当前 Makefile 仅支持构建，单元测试请使用 CMake 方法。
+
+```bash
+make                # 构建 lexer 和 parser
+make clean          # 清理构建文件
+```
 
 ## 注意事项
 
@@ -122,6 +159,10 @@ parser testfile.txt
    - Homework 2：通过 `ENABLE_PARSER_OUTPUT` 宏控制
 
 3. **兼容性：** 评测环境为 gcc/g++ 8.1.0，请确保代码兼容。
+
+4. **Windows 用户：**
+   - 推荐使用 MSYS2/MinGW 环境
+   - 或使用 Visual Studio 生成项目文件
 
 ## 开发日志
 

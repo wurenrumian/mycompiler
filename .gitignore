@@ -1,6 +1,5 @@
 # 构建目录
-/build/
-/build/
+build/
 cmake-build-*/
 
 # 编译输出
