@@ -38,7 +38,7 @@ inline void print_nt(const char* name) {
 
 %token IF ELSE WHILE FOR RETURN BREAK CONTINUE CONST
 %token INT_TYPE FLOAT_TYPE VOID_TYPE
-%token PLUS MINUS MUL DIV MOD
+%token PLUS MINU MUL DIV MOD
 %token EQ NEQ LT LE GT GE
 %token ASSIGN AND OR NOT
 %token LPARENT RPARENT LBRACE RBRACE LBRACK RBRACK SEMICOLON COMMA
@@ -51,9 +51,9 @@ inline void print_nt(const char* name) {
 %left AND
 %left EQ NEQ
 %left LT LE GT GE
-%left PLUS MINUS
+%left PLUS MINU
 %left MUL DIV MOD
-%right NOT UMINUS
+%right NOT UMINU
 
 %%
 
@@ -157,7 +157,7 @@ Exp
 AddExp
     : MulExp { print_nt("AddExp"); }
     | AddExp PLUS MulExp { print_nt("AddExp"); }
-    | AddExp MINUS MulExp { print_nt("AddExp"); }
+    | AddExp MINU MulExp { print_nt("AddExp"); }
     ;
 
 /* MulExp: 乘除表达式（左递归） */
@@ -173,8 +173,8 @@ UnaryExp
     : PrimaryExp { print_nt("UnaryExp"); }
     | IDENTIFIER LPARENT FuncRParams RPARENT { print_nt("UnaryExp"); }
     | IDENTIFIER LPARENT RPARENT { print_nt("UnaryExp"); }
-    | PLUS UnaryExp %prec UMINUS { print_nt("UnaryExp"); }
-    | MINUS UnaryExp %prec UMINUS { print_nt("UnaryExp"); }
+    | PLUS UnaryExp %prec UMINU { print_nt("UnaryExp"); }
+    | MINU UnaryExp %prec UMINU { print_nt("UnaryExp"); }
     | NOT UnaryExp { print_nt("UnaryExp"); }
     ;
 

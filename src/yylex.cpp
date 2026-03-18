@@ -64,24 +64,6 @@ int yylex()
 		return BREAK;
 	case TokenType::RETURNTK:
 		return RETURN;
-	case TokenType::PUTARRAYTK:
-		return IDENTIFIER; // 暂时映射，SysY 可能作为库函数
-	case TokenType::STOPTIMETK:
-		return IDENTIFIER;
-	case TokenType::GETINTTK:
-		return IDENTIFIER;
-	case TokenType::GETCHTK:
-		return IDENTIFIER;
-	case TokenType::GETARRAYTK:
-		return IDENTIFIER;
-	case TokenType::PUTINTTK:
-		return IDENTIFIER;
-	case TokenType::PUTCHTK:
-		return IDENTIFIER;
-	case TokenType::PUTFTK:
-		return IDENTIFIER;
-	case TokenType::STARTTIMETK:
-		return IDENTIFIER;
 	case TokenType::VOIDTK:
 		return VOID_TYPE;
 	case TokenType::IFTK:
@@ -90,8 +72,6 @@ int yylex()
 		return WHILE;
 	case TokenType::CONTINUETK:
 		return CONTINUE;
-	case TokenType::MAINTK:
-		return IDENTIFIER; // main 通常是标识符
 
 	// 运算符
 	case TokenType::GEQ:
@@ -110,8 +90,8 @@ int yylex()
 		return GT;
 	case TokenType::PLUS:
 		return PLUS;
-	case TokenType::MIUN:
-		return MINUS;
+	case TokenType::MINU:
+		return MINU;
 	case TokenType::MULT:
 		return MUL;
 	case TokenType::DIV:

@@ -12,7 +12,7 @@ Lexer::Lexer(std::unique_ptr<Stream<char>> s)
 }
 
 Lexer::Lexer(const std::string &filename)
-	: stream(std::make_unique<Stream<char>>(filename))
+	: stream(std::unique_ptr<Stream<char>>(new Stream<char>(filename)))
 {
 }
 
@@ -88,19 +88,48 @@ Token Lexer::read_integer(SourceLocation loc)
 	/**
 	 * @brief 读取整数常量
 	 *
-	 * 格式：连续的数字字符 [0-9]+
-	 * 注意：当前仅支持十进制整数
+	 * 格式：
+	 * - 十六进制：0x[0-9a-fA-F]+ 或 0X[0-9a-fA-F]+
+	 * - 十进制：[0-9]+
 	 */
 	std::string lexeme;
 	char c;
 
+	stream->next(c);
+	lexeme.push_back(c);
+
+	if (c == '0')
+	{
+		char next = stream->peek(0);
+		if (next == 'x' || next == 'X')
+		{
+			stream->next(next);
+			lexeme.push_back(next);
+			while (true)
+			{
+				char hex_c = stream->peek(0);
+				if (char_util::is_hex_digit(hex_c))
+				{
+					lexeme.push_back(hex_c);
+					stream->next(hex_c);
+				}
+				else
+				{
+					break;
+				}
+			}
+			return Token(TokenType::INTCON, lexeme, loc);
+		}
+	}
+
+	// 十进制
 	while (true)
 	{
-		c = stream->peek(0); // 查看下一个字符
-		if (char_util::is_digit(c))
+		char next_c = stream->peek(0);
+		if (char_util::is_digit(next_c))
 		{
-			lexeme.push_back(c);
-			stream->next(c);
+			lexeme.push_back(next_c);
+			stream->next(next_c);
 		}
 		else
 		{
@@ -176,9 +205,7 @@ Token Lexer::read_operator_or_delimiter(SourceLocation loc, char first)
 			char next_c;
 			stream->next(next_c);
 			lexeme.push_back(next_c);
-			// 如果有 NEQ 类型则返回，否则根据 html 表格，! 只有 NOT
-			// 检查 html 表格发现没有 != 的定义，所以这里可能不需要处理 != 或者 NEQ
-			// 但为了健壮性，如果文法没定义，我们先保持原样
+			return Token(TokenType::NEQ, lexeme, loc);
 		}
 		return Token(TokenType::NOT, lexeme, loc);
 	case '=':
@@ -214,7 +241,7 @@ Token Lexer::read_operator_or_delimiter(SourceLocation loc, char first)
 	case '+':
 		return Token(TokenType::PLUS, lexeme, loc);
 	case '-':
-		return Token(TokenType::MIUN, lexeme, loc);
+		return Token(TokenType::MINU, lexeme, loc);
 	case '*':
 		return Token(TokenType::MULT, lexeme, loc);
 	case '/':
@@ -246,6 +273,39 @@ Token Lexer::read_operator_or_delimiter(SourceLocation loc, char first)
 // ============================================================================
 // 核心词法分析逻辑
 // ============================================================================
+
+bool Lexer::skip_comment()
+{
+	char next_c = stream->peek(0);
+	if (next_c == '/')
+	{
+		// 单行注释
+		char c;
+		stream->next(c); // 消耗第二个 /
+		while (stream->next(c))
+		{
+			if (c == '\n')
+				break;
+		}
+		return true;
+	}
+	else if (next_c == '*')
+	{
+		// 多行注释
+		char c;
+		stream->next(c); // 消耗 *
+		while (stream->next(c))
+		{
+			if (c == '*' && stream->peek(0) == '/')
+			{
+				stream->next(c); // 消耗 /
+				break;
+			}
+		}
+		return true;
+	}
+	return false;
+}
 
 Token Lexer::next_token_impl()
 {
@@ -291,6 +351,11 @@ Token Lexer::next_token_impl()
 		}
 
 		// 运算符和界符
+		if (c == '/' && skip_comment())
+		{
+			continue;
+		}
+
 		return read_operator_or_delimiter(loc, c);
 	}
 
@@ -318,6 +383,6 @@ void Lexer::reset()
 	 * 重新打开文件，将流位置重置到开头
 	 * 用于需要重新扫描的场景
 	 */
-	stream = std::make_unique<Stream<char>>(stream->get_filename());
+	stream = std::unique_ptr<Stream<char>>(new Stream<char>(stream->get_filename()));
 	has_current = false;
 }

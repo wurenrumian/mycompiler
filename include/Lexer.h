@@ -38,6 +38,9 @@ private:
 	// 读取运算符或界符（处理多字符运算符如 >=、==、&&、||）
 	Token read_operator_or_delimiter(SourceLocation loc, char first);
 
+	// 处理注释
+	bool skip_comment();
+
 	// 获取下一个 token 的核心实现
 	Token next_token_impl();
 

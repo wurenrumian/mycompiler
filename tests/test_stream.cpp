@@ -7,7 +7,7 @@
 #include <fstream>
 #include <iostream>
 #include <string>
-#include <string_view>
+#include <vector>
 #include "../include/Stream.h"
 
 void test_stream_from_file()
@@ -58,7 +58,8 @@ void test_stream_from_string()
 {
 	// 测试字符串流
 	std::string data = "Test 123";
-	Stream<char> stream{std::string_view(data)};
+	std::vector<char> vdata(data.begin(), data.end());
+	Stream<char> stream{vdata};
 
 	char c;
 	std::string result;
@@ -75,7 +76,8 @@ void test_stream_from_string()
 void test_stream_peek_unget()
 {
 	std::string data = "ABC";
-	Stream<char> stream{std::string_view(data)};
+	std::vector<char> vdata(data.begin(), data.end());
+	Stream<char> stream{vdata};
 
 	char c;
 

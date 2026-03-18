@@ -28,7 +28,7 @@ extern int yylineno;
 "void"          { return VOID_TYPE; }
 
 "+"             { return PLUS; }
-"-"             { return MINUS; }
+"-"             { return MINU; }
 "*"             { return MUL; }
 "/"             { return DIV; }
 "%"             { return MOD; }

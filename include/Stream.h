@@ -26,18 +26,21 @@ private:
 	int line = 1;	// 当前行号（仅对字符流有意义）
 	int column = 1; // 当前列号（仅对字符流有意义）
 	bool eof = false;
-	static constexpr size_t BUFFER_SIZE = 8192;
+	static constexpr size_t BUFFER_SIZE = 65536; // 增大缓冲区以减少填充次数，并支持更长的 peek
 
 	// 填充缓冲区
 	bool fill_buffer()
 	{
+		if (eof)
+			return false;
 		buffer.clear();
 		buffer.resize(BUFFER_SIZE);
 		file.read(&buffer[0], BUFFER_SIZE);
-		buffer.resize(file.gcount());
+		size_t count = file.gcount();
+		buffer.resize(count);
 		pos = 0;
 
-		if (buffer.empty())
+		if (count == 0)
 		{
 			eof = true;
 			return false;
@@ -60,11 +63,10 @@ public:
 	}
 
 	/**
-	 * @brief 构造函数（从字符串数据）
-	 * @note 使用 std::basic_string_view 避免与文件名构造函数冲突
+	 * @brief 构造函数（从向量数据）
 	 */
-	explicit Stream(std::basic_string_view<T> data)
-		: buffer(data.begin(), data.end()), eof(data.empty())
+	explicit Stream(const std::vector<T> &data)
+		: buffer(data), eof(data.empty())
 	{
 	}
 
@@ -112,7 +114,7 @@ public:
 		out = buffer[pos++];
 
 		// 仅对字符类型更新行号列号
-		if constexpr (std::is_same_v<T, char> || std::is_same_v<T, unsigned char>)
+		if (std::is_same<T, char>::value || std::is_same<T, unsigned char>::value)
 		{
 			// 处理 \r\n 作为单个换行符（Windows 换行符）
 			if (out == '\r')
@@ -143,10 +145,46 @@ public:
 	/**
 	 * @brief 向前查看 n 个元素（不移动位置）
 	 */
-	T peek(size_t n = 0) const
+	T peek(size_t n = 0)
 	{
-		if (eof || pos + n >= buffer.size())
+		if (eof)
 			return T{};
+
+		// 如果请求的位置超出当前缓冲区，尝试填充
+		if (pos + n >= buffer.size())
+		{
+			// 如果已经到达文件末尾，无法再填充
+			if (file.eof())
+			{
+				return T{};
+			}
+
+			// 简单的跨缓冲区 peek 实现：
+			// 将当前缓冲区未读部分移动到开头，并读取更多数据
+			size_t remaining = buffer.size() - pos;
+			std::vector<T> new_buffer;
+			new_buffer.resize(BUFFER_SIZE + remaining);
+
+			if (remaining > 0)
+			{
+				for (size_t i = 0; i < remaining; ++i)
+				{
+					new_buffer[i] = buffer[pos + i];
+				}
+			}
+
+			file.read(&new_buffer[remaining], BUFFER_SIZE);
+			size_t count = file.gcount();
+			new_buffer.resize(remaining + count);
+
+			buffer = std::move(new_buffer);
+			pos = 0;
+
+			if (pos + n >= buffer.size())
+			{
+				return T{};
+			}
+		}
 
 		return buffer[pos + n];
 	}
@@ -161,7 +199,7 @@ public:
 		{
 			pos--;
 			// 更新位置信息（仅对字符类型）
-			if constexpr (std::is_same_v<T, char> || std::is_same_v<T, unsigned char>)
+			if (std::is_same<T, char>::value || std::is_same<T, unsigned char>::value)
 			{
 				if (pos < buffer.size())
 				{

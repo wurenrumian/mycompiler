@@ -3,7 +3,7 @@ project(CMMCompiler LANGUAGES CXX C)
 
 enable_testing()
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # 针对 MSVC 的设置
@@ -28,9 +28,9 @@ endif()
 
 # 生成词法/语法分析器
 FLEX_TARGET(CMMLexer src/cmm.l ${CMAKE_CURRENT_BINARY_DIR}/lex.yy.cc
-            COMPILE_FLAGS "--header-file=${CMAKE_CURRENT_BINARY_DIR}/lex.yy.h")
+    COMPILE_FLAGS "--header-file=${CMAKE_CURRENT_BINARY_DIR}/lex.yy.h")
 BISON_TARGET(CMMParser src/cmm.y ${CMAKE_CURRENT_BINARY_DIR}/cmm.tab.cc
-             DEFINES_FILE ${CMAKE_CURRENT_BINARY_DIR}/cmm.tab.h)
+    DEFINES_FILE ${CMAKE_CURRENT_BINARY_DIR}/cmm.tab.h)
 
 # ============================================
 # Homework 1: 独立词法分析器（不依赖 flex/bison）

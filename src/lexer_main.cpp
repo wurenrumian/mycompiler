@@ -10,7 +10,7 @@
  * 输出格式：每行一个 token，格式为 "TokenType  lexeme"
  * 示例：CONSTTK  const
  *
- * 编译：g++ -std=c++17 -Iinclude src/lexer_main.cpp src/Token.cpp src/Lexer.cpp -o lexer
+ * 编译：g++ -std=c++11 -Iinclude src/lexer_main.cpp src/Token.cpp src/Lexer.cpp -o lexer
  */
 
 #include <cstdio>
@@ -28,16 +28,16 @@
 int main(int argc, char **argv)
 {
 	// 检查命令行参数
-	if (argc < 2)
+	const char *input_file = "testfile.txt";
+	if (argc >= 2)
 	{
-		std::cerr << "Usage: " << (argc > 0 ? argv[0] : "lexer") << " <input_file>" << std::endl;
-		return 1;
+		input_file = argv[1];
 	}
 
 	try
 	{
 		// 创建词法分析器
-		Lexer lexer(argv[1]);
+		Lexer lexer(input_file);
 
 #if ENABLE_OUTPUT
 		// 打开输出文件

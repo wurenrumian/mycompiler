@@ -8,23 +8,13 @@ static const std::unordered_map<std::string, TokenType> keyword_map = {
 	// 关键字
 	{"const", TokenType::CONSTTK},
 	{"int", TokenType::INTTK},
-	{"else", TokenType::ELSETK},
-	{"break", TokenType::BREAKTK},
-	{"return", TokenType::RETURNTK},
-	{"putarray", TokenType::PUTARRAYTK},
-	{"stoptime", TokenType::STOPTIMETK},
-	{"getint", TokenType::GETINTTK},
-	{"getch", TokenType::GETCHTK},
-	{"getarray", TokenType::GETARRAYTK},
-	{"putint", TokenType::PUTINTTK},
-	{"putch", TokenType::PUTCHTK},
-	{"putf", TokenType::PUTFTK},
-	{"starttime", TokenType::STARTTIMETK},
 	{"void", TokenType::VOIDTK},
 	{"if", TokenType::IFTK},
+	{"else", TokenType::ELSETK},
 	{"while", TokenType::WHILETK},
+	{"break", TokenType::BREAKTK},
 	{"continue", TokenType::CONTINUETK},
-	{"main", TokenType::MAINTK}};
+	{"return", TokenType::RETURNTK}};
 
 // ============================================================================
 // Token 类型字符串映射（用于输出）
@@ -33,23 +23,13 @@ static const std::unordered_map<TokenType, std::string> token_type_strings = {
 	// 保留字
 	{TokenType::CONSTTK, "CONSTTK"},
 	{TokenType::INTTK, "INTTK"},
-	{TokenType::ELSETK, "ELSETK"},
-	{TokenType::BREAKTK, "BREAKTK"},
-	{TokenType::RETURNTK, "RETURNTK"},
-	{TokenType::PUTARRAYTK, "PUTARRAYTK"},
-	{TokenType::STOPTIMETK, "STOPTIMETK"},
-	{TokenType::GETINTTK, "GETINTTK"},
-	{TokenType::GETCHTK, "GETCHTK"},
-	{TokenType::GETARRAYTK, "GETARRAYTK"},
-	{TokenType::PUTINTTK, "PUTINTTK"},
-	{TokenType::PUTCHTK, "PUTCHTK"},
-	{TokenType::PUTFTK, "PUTFTK"},
-	{TokenType::STARTTIMETK, "STARTTIMETK"},
 	{TokenType::VOIDTK, "VOIDTK"},
 	{TokenType::IFTK, "IFTK"},
+	{TokenType::ELSETK, "ELSETK"},
 	{TokenType::WHILETK, "WHILETK"},
+	{TokenType::BREAKTK, "BREAKTK"},
 	{TokenType::CONTINUETK, "CONTINUETK"},
-	{TokenType::MAINTK, "MAINTK"},
+	{TokenType::RETURNTK, "RETURNTK"},
 
 	// 运算符
 	{TokenType::GEQ, "GEQ"},
@@ -60,12 +40,13 @@ static const std::unordered_map<TokenType, std::string> token_type_strings = {
 	{TokenType::LSS, "LSS"},
 	{TokenType::GRE, "GRE"},
 	{TokenType::PLUS, "PLUS"},
-	{TokenType::MIUN, "MIUN"},
+	{TokenType::MINU, "MINU"},
 	{TokenType::MULT, "MULT"},
 	{TokenType::DIV, "DIV"},
 	{TokenType::MOD, "MOD"},
 	{TokenType::ASSIGN, "ASSIGN"},
 	{TokenType::NOT, "NOT"},
+	{TokenType::NEQ, "NEQ"},
 
 	// 界符
 	{TokenType::SEMICN, "SEMICN"},

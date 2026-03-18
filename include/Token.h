@@ -16,25 +16,15 @@
 enum class TokenType
 {
 	// 保留字
-	CONSTTK,	 // const
-	INTTK,		 // int
-	ELSETK,		 // else
-	BREAKTK,	 // break
-	RETURNTK,	 // return
-	PUTARRAYTK,	 // putarray
-	STOPTIMETK,	 // stoptime
-	GETINTTK,	 // getint
-	GETCHTK,	 // getch
-	GETARRAYTK,	 // getarray
-	PUTINTTK,	 // putint
-	PUTCHTK,	 // putch
-	PUTFTK,		 // putf
-	STARTTIMETK, // starttime
-	VOIDTK,		 // void
-	IFTK,		 // if
-	WHILETK,	 // while
-	CONTINUETK,	 // continue
-	MAINTK,		 // main
+	CONSTTK,	// const
+	INTTK,		// int
+	VOIDTK,		// void
+	IFTK,		// if
+	ELSETK,		// else
+	WHILETK,	// while
+	BREAKTK,	// break
+	CONTINUETK, // continue
+	RETURNTK,	// return
 
 	// 运算符
 	GEQ,	// >=
@@ -45,12 +35,13 @@ enum class TokenType
 	LSS,	// <
 	GRE,	// >
 	PLUS,	// +
-	MIUN,	// -
+	MINU,	// -
 	MULT,	// *
 	DIV,	// /
 	MOD,	// %
 	ASSIGN, // =
 	NOT,	// !
+	NEQ,	// !=
 
 	// 界符
 	SEMICN,	 // ;
