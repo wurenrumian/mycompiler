@@ -1,46 +1,49 @@
-/**
- * @file parser_main.cpp
- * @brief Homework 2: 语法分析器主程序
- */
-
-#include <cstdio>
 #include <iostream>
+#include <fstream>
 #include "Lexer.h"
 
 // 声明由 Bison 生成的函数和变量
 extern int yyparse();
 extern void set_lexer(Lexer *lexer);
+extern std::ofstream output_file;
 
-int main(int argc, char **argv)
+int main()
 {
-	const char *input_file = "testfile.txt";
-	if (argc >= 2)
-	{
-		input_file = argv[1];
-	}
+	const char *input_filename = "testfile.txt";
+	const char *output_filename = "output.txt";
 
 	try
 	{
+		std::cout << "Opening input file: " << input_filename << std::endl;
 		// 创建词法分析器
-		Lexer lexer(input_file);
+		Lexer current_lexer(input_filename);
+		set_lexer(&current_lexer);
 
-		// 设置全局 lexer 供 yylex() 使用
-		set_lexer(&lexer);
+		std::cout << "Opening output file: " << output_filename << std::endl;
+		// 打开输出文件
+		output_file.open(output_filename);
+		if (!output_file.is_open())
+		{
+			std::cerr << "Failed to open output file: " << output_filename << std::endl;
+			return 1;
+		}
 
-		// 打开输出文件（如果 cmm.y 中需要）
-		// 注意：cmm.y 中使用了 out_file，我们需要确保它被正确初始化或在 parser_main 中处理
-
+		std::cout << "Starting parsing..." << std::endl;
 		// 执行语法分析
-		if (yyparse() == 0)
+		int result = yyparse();
+		if (result == 0)
 		{
 			std::cout << "Parsing completed successfully." << std::endl;
 		}
 		else
 		{
-			std::cerr << "Parsing failed." << std::endl;
+			std::cerr << "Parsing failed with code: " << result << std::endl;
+			output_file.close();
 			return 1;
 		}
 
+		output_file.close();
+		std::cout << "Output file closed." << std::endl;
 		return 0;
 	}
 	catch (const std::exception &e)

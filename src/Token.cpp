@@ -14,7 +14,10 @@ static const std::unordered_map<std::string, TokenType> keyword_map = {
 	{"while", TokenType::WHILETK},
 	{"break", TokenType::BREAKTK},
 	{"continue", TokenType::CONTINUETK},
-	{"return", TokenType::RETURNTK}};
+	{"return", TokenType::RETURNTK},
+	{"main", TokenType::MAINTK},
+	{"getint", TokenType::GETINTTK},
+	{"printf", TokenType::PRINTFTK}};
 
 // ============================================================================
 // Token 类型字符串映射（用于输出）
@@ -30,6 +33,9 @@ static const std::unordered_map<TokenType, std::string> token_type_strings = {
 	{TokenType::BREAKTK, "BREAKTK"},
 	{TokenType::CONTINUETK, "CONTINUETK"},
 	{TokenType::RETURNTK, "RETURNTK"},
+	{TokenType::MAINTK, "MAINTK"},
+	{TokenType::GETINTTK, "GETINTTK"},
+	{TokenType::PRINTFTK, "PRINTFTK"},
 
 	// 运算符
 	{TokenType::GEQ, "GEQ"},

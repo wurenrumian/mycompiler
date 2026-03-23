@@ -25,6 +25,9 @@ enum class TokenType
 	BREAKTK,	// break
 	CONTINUETK, // continue
 	RETURNTK,	// return
+	MAINTK,		// main
+	GETINTTK,	// getint
+	PRINTFTK,	// printf
 
 	// 运算符
 	GEQ,	// >=
