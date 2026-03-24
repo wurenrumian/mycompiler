@@ -1,3 +1,4 @@
+%glr-parser
 %{
 #include <iostream>
 #include <fstream>
@@ -16,11 +17,8 @@ void set_lexer(Lexer* l) {
 void yyerror(const char *s);
 int yylex();
 
-#if ENABLE_PARSER_OUTPUT
-#define PRINT_TAG(tag) if (output_file.is_open()) output_file << "<" << tag << ">" << std::endl;
-#else
-#define PRINT_TAG(tag)
-#endif
+bool enable_parser_output = true;
+#define PRINT_TAG(tag) if (enable_parser_output && output_file.is_open()) output_file << "<" << tag << ">" << std::endl;
 
 %}
 
@@ -36,11 +34,8 @@ int yylex();
 
 %%
 
-CompUnit : UnitList { PRINT_TAG("CompUnit"); }
-         ;
-
-UnitList : Unit
-         | UnitList Unit
+CompUnit : Unit { PRINT_TAG("CompUnit"); }
+         | CompUnit Unit { PRINT_TAG("CompUnit"); }
          ;
 
 Unit : Decl
@@ -120,7 +115,7 @@ FuncFParamList : FuncFParam
                ;
 
 FuncFParam : BType IDENFR { PRINT_TAG("FuncFParam"); }
-           | BType IDENFR LBRACK RBRACK ConstExpDims { PRINT_TAG("FuncFParam"); }
+           | BType IDENFR LBRACK RBRACK ExpDims { PRINT_TAG("FuncFParam"); }
            ;
 
 Block : LBRACE BlockItemList RBRACE { PRINT_TAG("Block"); }
@@ -145,7 +140,6 @@ Stmt : LVal ASSIGN Exp SEMICN { PRINT_TAG("Stmt"); }
      | CONTINUETK SEMICN { PRINT_TAG("Stmt"); }
      | RETURNTK SEMICN { PRINT_TAG("Stmt"); }
      | RETURNTK Exp SEMICN { PRINT_TAG("Stmt"); }
-     | LVal ASSIGN GETINTTK LPARENT RPARENT SEMICN { PRINT_TAG("Stmt"); }
      | PRINTFTK LPARENT STRCON ExpListWrapper RPARENT SEMICN { PRINT_TAG("Stmt"); }
      ;
 
@@ -180,6 +174,7 @@ Number : INTCON { PRINT_TAG("Number"); }
 
 UnaryExp : PrimaryExp { PRINT_TAG("UnaryExp"); }
          | IDENFR LPARENT FuncRParamsWrapper RPARENT { PRINT_TAG("UnaryExp"); }
+         | GETINTTK LPARENT RPARENT { PRINT_TAG("UnaryExp"); }
          | UnaryOp UnaryExp { PRINT_TAG("UnaryExp"); }
          ;
 

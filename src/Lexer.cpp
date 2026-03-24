@@ -1,6 +1,7 @@
 #include "Lexer.h"
 #include <cctype>
 #include <stdexcept>
+#include <iostream>
 
 // ============================================================================
 // Lexer 构造函数/析构函数
@@ -75,11 +76,15 @@ Token Lexer::read_identifier(SourceLocation loc)
 	TokenType type;
 	if (TokenUtils::is_keyword(lexeme, type))
 	{
-		return Token(type, lexeme, loc);
+		Token t(type, lexeme, loc);
+		// std::cout << "Token: " << TokenUtils::to_string(t.type) << " " << t.lexeme << std::endl;
+		return t;
 	}
 	else
 	{
-		return Token(TokenType::IDENFR, lexeme, loc);
+		Token t(TokenType::IDENFR, lexeme, loc);
+		// std::cout << "Token: " << TokenUtils::to_string(t.type) << " " << t.lexeme << std::endl;
+		return t;
 	}
 }
 
