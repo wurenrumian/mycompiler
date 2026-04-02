@@ -16,6 +16,7 @@ cmm_compiler.exe
 *.swp
 *.swo
 *~
+.cache/
 
 # CMake
 CMakeCache.txt
