@@ -39,6 +39,11 @@ target_compile_definitions(lexer PRIVATE YY_NO_UNISTD_H)
 # ============================================
 add_executable(parser
     src/parser_main.cpp
+    src/Ast.cpp
+    src/ParserFrontend.cpp
+    src/Semantic.cpp
+    src/IRBuilder.cpp
+    src/Codegen.cpp
     ${BISON_SysYParser_OUTPUTS}
     src/Token.cpp
     src/Lexer.cpp
@@ -86,6 +91,8 @@ add_test(NAME test_token COMMAND test_token)
 # Parser 测试
 add_executable(test_parser
     tests/test_parser.cpp
+    src/Ast.cpp
+    src/ParserFrontend.cpp
     ${BISON_SysYParser_OUTPUTS}
     src/Token.cpp
     src/Lexer.cpp
@@ -111,9 +118,19 @@ target_include_directories(test_lexer PRIVATE
 target_compile_definitions(test_lexer PRIVATE YY_NO_UNISTD_H)
 add_test(NAME test_lexer COMMAND test_lexer)
 
+# LLVM IR 生成集成测试（clang 不存在时会自动 skip）
+add_executable(test_codegen
+    tests/test_codegen.cpp
+)
+target_include_directories(test_codegen PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_compile_definitions(test_codegen PRIVATE YY_NO_UNISTD_H)
+add_test(NAME test_codegen COMMAND test_codegen)
+
 # 运行所有测试的便捷目标
 add_custom_target(run_all_tests
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS test_stream test_token test_lexer test_parser
+    DEPENDS test_stream test_token test_lexer test_parser test_codegen
     COMMENT "Running all unit tests..."
 )

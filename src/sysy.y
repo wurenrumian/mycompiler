@@ -2,16 +2,29 @@
 %{
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <string>
 #include <vector>
+#include "Ast.h"
 #include "Lexer.h"
 #include "Token.h"
 
 Lexer* lexer = nullptr;
 std::ofstream output_file;
+std::string parser_error_message;
 
 void set_lexer(Lexer* l) {
     lexer = l;
+    ast::reset_ast_root();
+    parser_error_message.clear();
+}
+
+void reset_parser_error() {
+    parser_error_message.clear();
+}
+
+std::string take_parser_error() {
+    return parser_error_message;
 }
 
 void yyerror(const char *s);
@@ -38,9 +51,9 @@ CompUnit : Unit { PRINT_TAG("CompUnit"); }
          | CompUnit Unit { PRINT_TAG("CompUnit"); }
          ;
 
-Unit : Decl
-     | FuncDef
-     | MainFuncDef
+Unit : Decl { ast::push_ast_item(ast::ItemKind::Decl, std::string()); }
+     | FuncDef { ast::push_ast_item(ast::ItemKind::FuncDef, std::string()); }
+     | MainFuncDef { ast::push_ast_item(ast::ItemKind::MainFuncDef, "main"); }
      ;
 
 Decl : ConstDecl
@@ -231,9 +244,12 @@ ConstExp : AddExp { PRINT_TAG("ConstExp"); }
 %%
 
 void yyerror(const char *s) {
-    std::cerr << "Error: " << s << " at line " << lexer->current_token().location.line
-              << ", column " << lexer->current_token().location.column
-              << ", token: " << lexer->current_token().lexeme << std::endl;
+    std::ostringstream os;
+    os << "Error: " << s << " at line " << lexer->current_token().location.line
+       << ", column " << lexer->current_token().location.column
+       << ", token: " << lexer->current_token().lexeme;
+    parser_error_message = os.str();
+    std::cerr << parser_error_message << std::endl;
 }
 
 int yylex() {

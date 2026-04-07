@@ -24,7 +24,9 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include "../include/Ast.h"
 #include "../include/Lexer.h"
+#include "../include/ParserFrontend.h"
 
 // 声明由 Bison 生成的函数和变量
 extern int yyparse();
@@ -56,6 +58,10 @@ void delete_test_file(const std::string &filename)
 	set_lexer(&lexer);                   \
 	int result = yyparse();              \
 	assert(result == 0);                 \
+	assert(ast::peek_ast_root() != nullptr); \
+	std::unique_ptr<ast::CompUnit> parsed_ast = ast::take_ast_root(); \
+	assert(parsed_ast.get() != nullptr); \
+	assert(!parsed_ast->items.empty()); \
 	delete_test_file(filename)
 
 // ============================================================================
@@ -1105,6 +1111,27 @@ void test_parser_output_format()
 	delete_test_file("output4.txt");
 }
 
+void test_parser_frontend_api()
+{
+	const std::string filename = "test_parser_frontend.txt";
+	const std::string content = "int g;\n"
+					  "int main() {\n"
+					  "    return 0;\n"
+					  "}";
+	create_test_file(filename, content);
+
+	std::unique_ptr<ast::CompUnit> root;
+	std::string error;
+	const bool ok = parse_file_to_ast(filename, &root, &error);
+	assert(ok);
+	assert(error.empty());
+	assert(root.get() != nullptr);
+	assert(root->items.size() == 2);
+
+	delete_test_file(filename);
+	std::cout << "[PASS] test_parser_frontend_api" << std::endl;
+}
+
 // ============================================================================
 // 主函数
 // ============================================================================
@@ -1117,6 +1144,7 @@ int main()
 		std::cout << "================================" << std::endl;
 		std::cout << "test_parser_output_format" << std::endl;
 		test_parser_output_format();
+		test_parser_frontend_api();
 
 		std::cout << "basic program structure" << std::endl;
 
