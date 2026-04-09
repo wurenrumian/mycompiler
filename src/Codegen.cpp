@@ -1,3 +1,24 @@
+/**
+ * @file Codegen.cpp
+ * @brief LLVM IR 代码生成器实现
+ *
+ * 本文件是编译器的核心代码生成模块，
+ * 负责将 SysY 源代码转换为 LLVM IR 中间代码。
+ *
+ * ===================== 重要设计说明 =====================
+ *
+ * 当前实现采用 clang 辅助模式：
+ * - 读取源文件 → 解析为 AST → 语义分析
+ * - 生成临时 C 代码 → 调用 clang 发射 LLVM IR
+ * - 清理和规范化生成的 IR
+ *
+ * ===================== 环境变量配置 =====================
+ *
+ * - LLVM_CLANG: 指定 clang 可执行文件路径
+ * - MYCOMPILER_OPT_LEVEL: 优化等级 (0-3)
+ * - MYCOMPILER_KEEP_TEMP: 设为 1 则保留临时文件
+ */
+
 #include "Codegen.h"
 
 #include <cstdlib>
@@ -13,11 +34,21 @@
 
 namespace
 {
+/**
+ * @brief 执行系统命令
+ * @param command 要执行的命令字符串
+ * @return 命令的退出码
+ */
 int run_command(const std::string &command)
 {
 	return std::system(command.c_str());
 }
 
+/**
+ * @brief 检查命令是否存在
+ * @param exe 可执行文件名或完整路径
+ * @return 存在返回 true，否则返回 false
+ */
 bool command_exists(const std::string &exe)
 {
 #ifdef _WIN32
@@ -28,6 +59,12 @@ bool command_exists(const std::string &exe)
 	return run_command(cmd) == 0;
 }
 
+/**
+ * @brief 拼接目录和文件名
+ * @param dir 目录路径
+ * @param name 文件名
+ * @return 拼接后的完整路径
+ */
 std::string join_path(const std::string &dir, const std::string &name)
 {
 	if (dir.empty())
@@ -42,6 +79,16 @@ std::string join_path(const std::string &dir, const std::string &name)
 	return dir + "\\" + name;
 }
 
+/**
+ * @brief 在 lli 所在目录查找同版本的 clang
+ *
+ * 查找策略：
+ * - 遍历 PATH 环境变量中的每个目录
+ * - 检查是否存在 lli.exe 和 clang.exe
+ * - 返回找到的 clang.exe 路径
+ *
+ * @return 找到的 clang 路径，未找到则返回空字符串
+ */
 std::string find_lli_sibling_clang()
 {
 	const char *path_env = std::getenv("PATH");
@@ -77,20 +124,33 @@ std::string find_lli_sibling_clang()
 	return std::string();
 }
 
+/**
+ * @brief 查找可用的 clang 可执行文件
+ *
+ * 查找优先级：
+ * 1. LLVM_CLANG 环境变量指定的值
+ * 2. lli 同目录的 clang
+ * 3. PATH 中的 clang, clang-18, clang-17, clang-16
+ *
+ * @return 找到的 clang 路径，未找到则返回空字符串
+ */
 std::string find_clang_executable()
 {
+	/** 优先级 1: 环境变量指定 */
 	const char *from_env = std::getenv("LLVM_CLANG");
 	if (from_env != nullptr && from_env[0] != '\0' && command_exists(from_env))
 	{
 		return std::string(from_env);
 	}
 
+	/** 优先级 2: lli 同目录 */
 	const std::string sibling = find_lli_sibling_clang();
 	if (!sibling.empty())
 	{
 		return sibling;
 	}
 
+	/** 优先级 3: PATH 中的常见 clang 版本 */
 	const char *candidates[] = {"clang", "clang-18", "clang-17", "clang-16"};
 	for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); ++i)
 	{
@@ -103,6 +163,15 @@ std::string find_clang_executable()
 	return std::string();
 }
 
+/**
+ * @brief 生成 SysY 运行时库函数实现
+ *
+ * 输出 C 代码形式的运行时库：
+ * - getint/getch: 从标准输入读取
+ * - putint/putch: 输出到标准输出
+ * - getarray/putarray: 数组输入输出
+ * - starttime/stoptime: 性能计时 (空实现)
+ */
 std::string build_driver_prelude()
 {
 	std::ostringstream os;
@@ -146,6 +215,11 @@ std::string build_driver_prelude()
 	return os.str();
 }
 
+/**
+ * @brief 去除字符串首尾空白字符
+ * @param text 输入字符串
+ * @return 去除空白后的字符串
+ */
 std::string trim_copy(const std::string &text)
 {
 	size_t begin = 0;
@@ -163,6 +237,16 @@ std::string trim_copy(const std::string &text)
 	return text.substr(begin, end - begin);
 }
 
+/**
+ * @brief 判断一行是否为内置函数声明
+ *
+ * SysY 内置函数包括：
+ * getint, getch, getarray, putint, putch, putarray, putf,
+ * starttime, stoptime, _sysy_starttime, _sysy_stoptime
+ *
+ * @param line 源代码行
+ * @return 是内置函数声明返回 true
+ */
 bool is_builtin_decl_line(const std::string &line)
 {
 	static const char *names[] = {
@@ -197,6 +281,15 @@ bool is_builtin_decl_line(const std::string &line)
 	return false;
 }
 
+/**
+ * @brief 从源代码中移除内置函数声明
+ *
+ * 因为内置函数会在 driver_prelude 中提供实现，
+ * 所以源文件中的声明需要移除以避免重复定义。
+ *
+ * @param source 原始源代码
+ * @return 移除内置函数声明后的源代码
+ */
 std::string strip_builtin_declarations(const std::string &source)
 {
 	std::istringstream in(source);
@@ -214,6 +307,19 @@ std::string strip_builtin_declarations(const std::string &source)
 	return out.str();
 }
 
+/**
+ * @brief 移除 LLVM IR 中的主机特定行
+ *
+ * 移除的内容：
+ * - target datalayout: 目标数据布局 (包含主机特定信息)
+ * - target triple: 目标三元组 (包含主机特定信息)
+ *
+ * 这些信息会导致生成的 IR 不可移植，
+ * 移除后 IR 可以在不同的 LLVM 环境下运行。
+ *
+ * @param ir 原始 LLVM IR 文本
+ * @return 清理后的 LLVM IR 文本
+ */
 std::string strip_host_specific_llvm_module_lines(const std::string &ir)
 {
 	std::istringstream in(ir);
@@ -234,10 +340,20 @@ std::string strip_host_specific_llvm_module_lines(const std::string &ir)
 }
 } // namespace
 
+/**
+ * @brief 从环境变量读取代码生成配置
+ *
+ * 支持的环境变量：
+ * - MYCOMPILER_OPT_LEVEL: 优化等级 (0-3)
+ * - MYCOMPILER_KEEP_TEMP: 设为 1 则保留临时文件
+ *
+ * @return 解析后的配置结构体
+ */
 CodegenOptions LLVMIRGenerator::from_environment()
 {
 	CodegenOptions options;
 
+	/** 读取优化等级 */
 	const char *opt_level_env = std::getenv("MYCOMPILER_OPT_LEVEL");
 	if (opt_level_env != nullptr && opt_level_env[0] != '\0')
 	{
@@ -254,6 +370,7 @@ CodegenOptions LLVMIRGenerator::from_environment()
 		options.enable_optimizations = value > 0;
 	}
 
+	/** 读取临时文件保留标志 */
 	const char *keep_temp_env = std::getenv("MYCOMPILER_KEEP_TEMP");
 	if (keep_temp_env != nullptr && keep_temp_env[0] == '1')
 	{
@@ -263,11 +380,31 @@ CodegenOptions LLVMIRGenerator::from_environment()
 	return options;
 }
 
+/**
+ * @brief 将源文件编译为 LLVM IR
+ *
+ * 完整的编译流程：
+ * 1. 读取源文件
+ * 2. 预处理: 移除内置函数声明
+ * 3. 语法分析: 解析为 AST
+ * 4. 语义分析: 检查程序结构
+ * 5. 生成临时 C 代码
+ * 6. 调用 clang 发射 LLVM IR
+ * 7. 清理和规范化 IR
+ * 8. 输出到目标文件
+ *
+ * @param input_path 输入源文件路径 (testfile.txt)
+ * @param output_path 输出 IR 文件路径 (output.ll)
+ * @param options 代码生成选项
+ * @param error_message 错误信息输出参数
+ * @return 成功返回 true，失败返回 false
+ */
 bool LLVMIRGenerator::generate_from_file(const std::string &input_path,
 					 const std::string &output_path,
 					 const CodegenOptions &options,
 					 std::string *error_message) const
 {
+	/** 步骤 1: 打开源文件 */
 	std::ifstream input(input_path.c_str(), std::ios::binary);
 	if (!input.is_open())
 	{
@@ -278,10 +415,12 @@ bool LLVMIRGenerator::generate_from_file(const std::string &input_path,
 		return false;
 	}
 
+	/** 步骤 2: 读取并预处理源文件 */
 	std::ostringstream source_buffer;
 	source_buffer << input.rdbuf();
 	const std::string stripped_source = strip_builtin_declarations(source_buffer.str());
 
+	/** 步骤 3: 创建临时文件用于解析 */
 	const std::string temp_parse_file = "__tmp_parse_input.sy";
 	{
 		std::ofstream parse_input(temp_parse_file.c_str(), std::ios::binary | std::ios::trunc);
@@ -296,6 +435,7 @@ bool LLVMIRGenerator::generate_from_file(const std::string &input_path,
 		parse_input << stripped_source;
 	}
 
+	/** 步骤 4: 语法分析 - 解析为 AST */
 	std::unique_ptr<ast::CompUnit> ast_root;
 	std::string parse_error;
 	const bool parsed = parse_file_to_ast(temp_parse_file, &ast_root, &parse_error);
@@ -312,6 +452,7 @@ bool LLVMIRGenerator::generate_from_file(const std::string &input_path,
 		return false;
 	}
 
+	/** 检查 AST 是否为空 */
 	if (!ast_root || ast_root->items.empty())
 	{
 		if (error_message != nullptr)
@@ -321,6 +462,7 @@ bool LLVMIRGenerator::generate_from_file(const std::string &input_path,
 		return false;
 	}
 
+	/** 步骤 5: 语义分析 */
 	semantic::ProgramInfo program_info;
 	std::string semantic_error;
 	if (!semantic::analyze_program(*ast_root, &program_info, &semantic_error))
@@ -332,6 +474,7 @@ bool LLVMIRGenerator::generate_from_file(const std::string &input_path,
 		return false;
 	}
 
+	/** 步骤 6: 生成临时 C 源代码文件 */
 	const std::string temp_source_file = "__tmp_codegen_input.c";
 	std::ofstream temp(temp_source_file.c_str(), std::ios::binary | std::ios::trunc);
 	if (!temp.is_open())
@@ -347,6 +490,7 @@ bool LLVMIRGenerator::generate_from_file(const std::string &input_path,
 	temp << stripped_source;
 	temp.close();
 
+	/** 步骤 7: 查找 clang 可执行文件 */
 	const std::string clang_exe = find_clang_executable();
 	if (clang_exe.empty())
 	{
@@ -361,6 +505,7 @@ bool LLVMIRGenerator::generate_from_file(const std::string &input_path,
 		return false;
 	}
 
+	/** 步骤 8: 调用 clang 编译为 LLVM IR */
 	std::ostringstream cmd;
 	cmd << clang_exe
 		<< " -S -emit-llvm -x c"
@@ -385,6 +530,7 @@ bool LLVMIRGenerator::generate_from_file(const std::string &input_path,
 		return false;
 	}
 
+	/** 步骤 9: 读取生成的 IR */
 	std::ifstream generated_ir(output_path.c_str(), std::ios::binary);
 	if (!generated_ir.is_open())
 	{
@@ -399,6 +545,7 @@ bool LLVMIRGenerator::generate_from_file(const std::string &input_path,
 	ir_buffer << generated_ir.rdbuf();
 	generated_ir.close();
 
+	/** 步骤 10: 规范化 IR - 移除主机特定信息 */
 	std::ofstream normalized_ir(output_path.c_str(), std::ios::binary | std::ios::trunc);
 	if (!normalized_ir.is_open())
 	{
