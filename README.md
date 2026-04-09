@@ -1,6 +1,6 @@
-# CMM Compiler - 词法分析与语法分析
+# CMM Compiler - 词法分析、语法分析与 LLVM IR 生成
 
-本项目实现 CMM 语言的词法分析器（Homework 1）和语法分析器（Homework 2），基于 SysY 文法标准。
+本项目实现 CMM 语言的词法分析器（Homework 1）、语法分析器（Homework 2）和 LLVM IR 生成器（Homework 3），基于 SysY 文法标准。
 
 ## 项目结构
 
@@ -47,14 +47,22 @@ cd build
 ./lexer ../testfile.txt
 ```
 
-### 运行 Homework 2（语法分析器）
+### 运行 Homework 2/3（语法分析 + LLVM IR 生成）
+
+在项目根目录准备 `testfile.txt`，然后执行：
 
 ```bash
 cd build
-./parser ../testfile.txt
+./parser
 ```
 
-输出文件：`build/output.txt`
+输出文件：项目根目录 `output.ll`
+
+可选优化开关（为后续优化作业预留）：
+
+- `MYCOMPILER_OPT_LEVEL=0~3`：控制生成 IR 时传给 clang 的优化等级（默认 0）
+- `MYCOMPILER_KEEP_TEMP=1`：保留中间 C 临时文件，便于调试
+- `LLVM_CLANG=<clang 可执行文件>`：指定 clang 路径
 
 ## 实现说明
 
