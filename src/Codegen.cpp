@@ -175,43 +175,18 @@ std::string find_clang_executable()
 std::string build_driver_prelude()
 {
 	std::ostringstream os;
-	os << "extern int scanf(const char *, ...);\n";
-	os << "extern int printf(const char *, ...);\n";
-	os << "extern int getchar(void);\n";
-	os << "#define putf printf\n";
-	os << "int getint(void) {\n";
-	os << "    int x = 0;\n";
-	os << "    scanf(\"%d\", &x);\n";
-	os << "    return x;\n";
-	os << "}\n\n";
-	os << "int getch(void) {\n";
-	os << "    return getchar();\n";
-	os << "}\n\n";
-	os << "void putint(int x) {\n";
-	os << "    printf(\"%d\", x);\n";
-	os << "}\n\n";
-	os << "void putch(int c) {\n";
-	os << "    printf(\"%c\", c);\n";
-	os << "}\n\n";
-	os << "int getarray(int a[]) {\n";
-	os << "    int n = 0;\n";
-	os << "    scanf(\"%d\", &n);\n";
-	os << "    for (int i = 0; i < n; ++i) {\n";
-	os << "        scanf(\"%d\", &a[i]);\n";
-	os << "    }\n";
-	os << "    return n;\n";
-	os << "}\n\n";
-	os << "void putarray(int n, int a[]) {\n";
-	os << "    printf(\"%d:\", n);\n";
-	os << "    for (int i = 0; i < n; ++i) {\n";
-	os << "        printf(\" %d\", a[i]);\n";
-	os << "    }\n";
-	os << "    printf(\"\\n\");\n";
-	os << "}\n\n";
-	os << "void starttime(void) {}\n";
-	os << "void stoptime(void) {}\n";
-	os << "void _sysy_starttime(int x) {(void)x;}\n";
-	os << "void _sysy_stoptime(int x) {(void)x;}\n\n";
+	os << "int getint(void);\n";
+	os << "int getch(void);\n";
+	os << "int getarray(int a[]);\n";
+	os << "void putint(int a);\n";
+	os << "void putch(int a);\n";
+	os << "void putarray(int n, int a[]);\n";
+	os << "void putf(char a[], ...);\n";
+	os << "void _sysy_starttime(int lineno);\n";
+	os << "void _sysy_stoptime(int lineno);\n";
+	os << "#define starttime() _sysy_starttime(__LINE__)\n";
+	os << "#define stoptime() _sysy_stoptime(__LINE__)\n";
+	os << "#define printf putf\n\n";
 	return os.str();
 }
 
