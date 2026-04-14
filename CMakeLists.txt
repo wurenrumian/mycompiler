@@ -128,6 +128,27 @@ target_include_directories(test_codegen PRIVATE
 target_compile_definitions(test_codegen PRIVATE YY_NO_UNISTD_H)
 add_test(NAME test_codegen COMMAND test_codegen)
 
+# 复杂测试用例集成测试
+add_executable(test_complex
+    tests/test_complex.cpp
+)
+target_include_directories(test_complex PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_compile_definitions(test_complex PRIVATE YY_NO_UNISTD_H)
+add_test(NAME test_complex COMMAND test_complex)
+
+# Parser分段调试测试
+add_executable(test_parser_debug
+    tests/test_parser_debug.cpp
+)
+target_include_directories(test_parser_debug PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_compile_definitions(test_parser_debug PRIVATE YY_NO_UNISTD_H)
+add_test(NAME test_parser_debug COMMAND test_parser_debug)
+
 # 运行所有测试的便捷目标
 add_custom_target(run_all_tests
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure

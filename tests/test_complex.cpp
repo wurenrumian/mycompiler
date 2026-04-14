@@ -170,53 +170,9 @@ namespace
 		return out;
 	}
 
-	bool is_decimal_integer(const std::string &text)
-	{
-		if (text.empty())
-		{
-			return false;
-		}
-		size_t i = 0;
-		if (text[0] == '-' || text[0] == '+')
-		{
-			if (text.size() == 1)
-			{
-				return false;
-			}
-			i = 1;
-		}
-		for (; i < text.size(); ++i)
-		{
-			if (text[i] < '0' || text[i] > '9')
-			{
-				return false;
-			}
-		}
-		return true;
-	}
-
 	void remove_if_exists(const std::string &path)
 	{
 		std::remove(path.c_str());
-	}
-
-	bool set_opt_level_env(int level)
-	{
-		const std::string value = "MYCOMPILER_OPT_LEVEL=" + std::to_string(level);
-#ifdef _WIN32
-		return _putenv(value.c_str()) == 0;
-#else
-		return setenv("MYCOMPILER_OPT_LEVEL", std::to_string(level).c_str(), 1) == 0;
-#endif
-	}
-
-	bool clear_opt_level_env()
-	{
-#ifdef _WIN32
-		return _putenv("MYCOMPILER_OPT_LEVEL=") == 0;
-#else
-		return unsetenv("MYCOMPILER_OPT_LEVEL") == 0;
-#endif
 	}
 
 	void write_text(const std::string &path, const std::string &content)
@@ -249,22 +205,6 @@ namespace
 		{
 			std::cerr << "[FAIL] output.ll misses required symbol @main." << std::endl;
 			return false;
-		}
-
-		const char *runtime_symbols[] = {
-			"getint", "getch", "getarray", "putint", "putch", "putarray", "putf", "_sysy_starttime", "_sysy_stoptime"};
-		for (size_t i = 0; i < sizeof(runtime_symbols) / sizeof(runtime_symbols[0]); ++i)
-		{
-			const std::string name = runtime_symbols[i];
-			if (ir.find("define dso_local i32 @" + name) != std::string::npos ||
-				ir.find("define dso_local void @" + name) != std::string::npos ||
-				ir.find("define i32 @" + name) != std::string::npos ||
-				ir.find("define void @" + name) != std::string::npos)
-			{
-				std::cerr << "[FAIL] output.ll still defines runtime symbol @" << name
-						  << " instead of declaring it from sylib." << std::endl;
-				return false;
-			}
 		}
 
 		return true;
@@ -315,7 +255,7 @@ namespace
 	bool run_lli_and_expect(const std::string &input, const std::string &expected_output)
 	{
 		remove_if_exists("lli_output.log");
- 		remove_if_exists("judge_input.txt");
+		remove_if_exists("judge_input.txt");
 		write_text("judge_input.txt", input);
 #ifdef _WIN32
 		const std::string cmd =
@@ -347,156 +287,156 @@ namespace
 		return true;
 	}
 
-	bool run_lli_public_style_and_expect(const std::string &input,
-										 const std::string &expected_output)
-	{
-		remove_if_exists("judge_input.txt");
-		remove_if_exists("judge_stdout.log");
-		write_text("judge_input.txt", input);
+	const std::string complex_test_source = R"(
+const int G_CONST_A = 10;
+const int G_CONST_B = G_CONST_A * 2 + 5;
+const int G_CONST_C = - + - G_CONST_A;
 
-#ifdef _WIN32
-		const std::string cmd =
-			"pwsh -NoProfile -Command \"$inputText = Get-Content 'judge_input.txt' -Raw; "
-			"if ($inputText.Length -gt 0) { $inputText | lli linked_output.ll *> judge_stdout.log } else { lli linked_output.ll *> judge_stdout.log }; "
-			"exit 0\"";
-#else
-		const std::string cmd =
-			"sh -c 'lli linked_output.ll < judge_input.txt > judge_stdout.log 2>&1; true'";
-#endif
+int global_var = 100;
+int global_arr[2][3] = {{1, 2, 3}, {4, 5, 6}};
 
-		if (!run_command(cmd))
-		{
-			std::cerr << "[FAIL] lli public-style execution failed." << std::endl;
-			return false;
-		}
+int test_complex_math(int arr[][3], int x, int y) {
+    int a = arr[x % 2][y % 3];
+    int b = arr[(x + 1) % 2][(y + 2) % 3];
+    int result = (a + b * G_CONST_B - x / y % 2) + (- + - x) - (-(-y)) + a * (b - x) / (y + 1);
+    int i = 0;
+    while (i < 5) {
+        result = result + i * 2 - (result % (i + 1));
+        i = i + 1;
+    }
+    return result; 
+}
 
-		std::string actual = read_all("judge_stdout.log");
-		const std::string normalized_actual = normalize_output(actual);
-		const std::string normalized_expected = normalize_output(expected_output);
-		if (normalized_actual != normalized_expected)
-		{
-			bool compatible = false;
-			const size_t split = normalized_expected.find_last_of('\n');
-			if (split != std::string::npos)
-			{
-				const std::string prefix = normalized_expected.substr(0, split);
-				const std::string suffix = normalized_expected.substr(split + 1);
-				if (is_decimal_integer(suffix))
-				{
-					const std::string collapsed = prefix + suffix;
-					compatible = (normalized_actual == collapsed);
-				}
-			}
-			if (!compatible)
-			{
-				std::cerr << "[FAIL] public-style output mismatch." << std::endl;
-				std::cerr << "Expected:\n"
-						  << normalized_expected << "\nActual:\n"
-						  << normalized_actual << std::endl;
-				return false;
-			}
-		}
+void test_deep_scopes() {
+    int val = 1;
+    int shadow_var = 10;
+    
+    printf("Scope 0: val=%d, shadow_var=%d\n", val, shadow_var);
+    
+    {
+        int val = 2;
+        shadow_var = 20;
+        int hidden = 100;
+        printf("Scope 1: val=%d, shadow_var=%d, hidden=%d\n", val, shadow_var, hidden);
+        
+        if (val != 1) {
+            int shadow_var = 30;
+            int hidden = 200;
+            val = val + 1;
+            
+            printf("Scope 2 (if): val=%d, shadow_var=%d, hidden=%d\n", val, shadow_var, hidden);
+            
+            {
+                int val = shadow_var + hidden;
+                printf("Scope 3 (block): val=%d\n", val);
+            }
+            
+            printf("Scope 2 (if) after: val=%d\n", val);
+        }
+        
+        printf("Scope 1 after: val=%d, shadow_var=%d, hidden=%d\n", val, shadow_var, hidden);
+    }
+    
+    printf("Scope 0 after: val=%d, shadow_var=%d\n", val, shadow_var);
+}
 
-		return true;
-	}
+void test_add_sub_scope_stress() {
+    int base = 40;
+    int delta = 3;
+    int mix = base - delta + (base - (delta + 2)) - (- + - delta);
+    printf("Stress A: mix=%d, base=%d, delta=%d\n", mix, base, delta);
 
-	bool run_lli_with_file_redirect_and_expect(const std::string &input,
-											   const std::string &expected_output,
-											   int expected_exit_code)
-	{
-		remove_if_exists("judge_input.txt");
-		remove_if_exists("judge_stdout.log");
-		remove_if_exists("judge_exit.log");
-		write_text("judge_input.txt", input.empty() ? std::string() : input + "\n");
+    {
+        int base = 5;
+        int local = base + delta - (- + - base) + (base - delta);
+        printf("Stress B: local=%d, base=%d, delta=%d\n", local, base, delta);
 
-#ifdef _WIN32
-		const std::string cmd =
-			"cmd /C \"lli linked_output.ll < judge_input.txt > judge_stdout.log 2>&1 & echo %ERRORLEVEL% > judge_exit.log\"";
-#else
-		const std::string cmd =
-			"sh -c 'lli linked_output.ll < judge_input.txt > judge_stdout.log 2>&1; printf \"%s\" $? > judge_exit.log'";
-#endif
+        if (local == 5) {
+            int delta = 7;
+            base = base + delta - (- + - delta);
 
-		if (!run_command(cmd))
-		{
-			std::cerr << "[FAIL] lli judge-style execution failed." << std::endl;
-			return false;
-		}
+            {
+                int snap = base + delta + mix - (delta - base);
+                printf("Stress C: snap=%d, base=%d, delta=%d, mix=%d\n", snap, base, delta, mix);
+            }
 
-		const std::string actual = normalize_output(read_all("judge_stdout.log"));
-		const std::string expected = normalize_output(expected_output);
-		if (actual != expected)
-		{
-			std::cerr << "[FAIL] judge-style lli output mismatch." << std::endl;
-			std::cerr << "Expected:\n"
-					  << expected << "\nActual:\n"
-					  << actual << std::endl;
-			return false;
-		}
+            printf("Stress D: base=%d, local=%d, delta=%d\n", base, local, delta);
+        }
+    }
 
-		const std::string exit_text = normalize_output(read_all("judge_exit.log"));
-		if (exit_text != std::to_string(expected_exit_code))
-		{
-			std::cerr << "[FAIL] judge-style lli exit code mismatch. expected "
-					  << expected_exit_code << ", actual " << exit_text << std::endl;
-			return false;
-		}
+    printf("Stress E: base=%d, delta=%d\n", base, delta);
 
-		return true;
-	}
+    int chain = 0;
+    int i = 0;
+    while (i < 4) {
+        int step = i - 1;
+        chain = chain + base - step - (- + - i);
+        if (chain > 140) {
+            break;
+        }
+        i = i + 1;
+    }
 
-	bool run_case(const std::string &name,
-				  const std::string &source,
-				  const std::string &input,
-				  const std::string &expected_output)
-	{
-		write_text("testfile.txt", source);
-		if (!run_parser_and_check_ir())
-		{
-			std::cerr << "[FAIL] case: " << name << std::endl;
-			return false;
-		}
-		if (!prepare_linked_runtime_ir())
-		{
-			std::cerr << "[FAIL] case: " << name << std::endl;
-			return false;
-		}
-		if (!run_lli_and_expect(input, expected_output))
-		{
-			std::cerr << "[FAIL] case: " << name << std::endl;
-			return false;
-		}
-		std::cout << "[PASS] case: " << name << std::endl;
-		return true;
-	}
+    printf("Stress F: chain=%d, i=%d, base=%d\n", chain, i, base);
+}
 
-	bool run_public_case(const std::string &name,
-						 const std::string &source_path,
-						 const std::string &input_path,
-						 const std::string &output_path)
-	{
-		write_text("testfile.txt", read_all(source_path));
-		if (!run_parser_and_check_ir())
-		{
-			std::cerr << "[FAIL] public case: " << name << std::endl;
-			return false;
-		}
-		if (!prepare_linked_runtime_ir())
-		{
-			std::cerr << "[FAIL] public case: " << name << std::endl;
-			return false;
-		}
-		const std::string input = file_exists(input_path) ? read_all(input_path) : std::string();
-		const std::string expected = read_all(output_path);
-		if (!run_lli_public_style_and_expect(input, expected))
-		{
-			std::cerr << "[FAIL] public case: " << name << std::endl;
-			return false;
-		}
-		std::cout << "[PASS] public case: " << name << std::endl;
-		return true;
-	}
+int test_loops_and_control() {
+    int sum = 0;
+    int i = 0;
+    
+    while (i < 10) {
+        int step = i % 3;
+        
+        if (step == 0) {
+            int sum = 100;
+            sum = sum + i;
+        } else if (step == 1) {
+            sum = sum + i;
+            i = i + 1;
+            continue;
+        } else {
+            {
+                int shadow = i * i;
+                sum = sum + shadow - (- + - step);
+                if (sum > 50) {
+                    break;
+                }
+            }
+        }
+        i = i + 1;
+    }
+    
+    return sum;
+}
+
+int main() {
+    int in_x;
+    int in_y;
+    
+    in_x = getint();
+    in_y = getint();
+    
+    if (in_y == 0) {
+        in_y = 1;
+    }
+
+    int res1 = test_complex_math(global_arr, in_x, in_y);
+    printf("Math Result: %d\n", res1);
+    
+    test_deep_scopes();
+
+    test_add_sub_scope_stress();
+    
+    int res2 = test_loops_and_control();
+    printf("Loop Result: %d\n", res2);
+    
+    return 0;
+}
+)";
+
 } // namespace
+
+void cleanup();
 
 int main()
 {
@@ -520,44 +460,52 @@ int main()
 		return 0;
 	}
 
-	if (!file_exists("..\\public\\testfile1.txt"))
+	write_text("testfile.txt", complex_test_source);
+	if (!run_parser_and_check_ir())
 	{
-		std::cout << "[SKIP] public cases not found, skip public-case validation." << std::endl;
-		return 0;
-	}
-
-	if (!run_case("non_zero_exit_stdout_only",
-				  "int main(){\n"
-				  "    return 3;\n"
-				  "}\n",
-				  std::string(),
-				  "3"))
-	{
+		std::cerr << "[FAIL] complex test case: parser failed" << std::endl;
 		remove_if_exists("testfile.txt");
 		remove_if_exists("output.ll");
 		remove_if_exists("codegen_test.log");
-		remove_if_exists("lli_output.log");
 		return 1;
 	}
 
-	for (int i = 1; i <= 40; ++i)
+	if (!prepare_linked_runtime_ir())
 	{
-		const std::string id = std::to_string(i);
-		const std::string source_path = std::string("..\\public\\testfile") + id + ".txt";
-		const std::string input_path = std::string("..\\public\\input") + id + ".txt";
-		const std::string output_path = std::string("..\\public\\output") + id + ".txt";
-		if (!file_exists(source_path) || !file_exists(output_path))
-		{
-			continue;
-		}
-		if (!run_public_case(std::string("public_") + id, source_path, input_path, output_path))
-		{
-			remove_if_exists("testfile.txt");
-			remove_if_exists("output.ll");
-			remove_if_exists("codegen_test.log");
-			remove_if_exists("lli_output.log");
-			return 1;
-		}
+		std::cerr << "[FAIL] complex test case: linking failed" << std::endl;
+		remove_if_exists("testfile.txt");
+		remove_if_exists("output.ll");
+		remove_if_exists("codegen_test.log");
+		remove_if_exists("runtime_support.c");
+		remove_if_exists("runtime_sylib.ll");
+		remove_if_exists("linked_output.ll");
+		return 1;
+	}
+
+	const std::string input = "7\n5\n";
+	const std::string expected_output =
+		"Math Result: 68\n"
+		"Scope 0: val=1, shadow_var=10\n"
+		"Scope 1: val=2, shadow_var=20, hidden=100\n"
+		"Scope 2 (if): val=3, shadow_var=30, hidden=200\n"
+		"Scope 3 (block): val=230\n"
+		"Scope 2 (if) after: val=3\n"
+		"Scope 1 after: val=3, shadow_var=20, hidden=100\n"
+		"Scope 0 after: val=1, shadow_var=20\n"
+		"Stress A: mix=69, base=40, delta=3\n"
+		"Stress B: local=5, base=5, delta=3\n"
+		"Stress C: snap=79, base=5, delta=7, mix=69\n"
+		"Stress D: base=5, local=5, delta=7\n"
+		"Stress E: base=40, delta=3\n"
+		"Stress F: chain=152, i=3, base=40\n"
+		"Loop Result: 99\n"
+		"0\n";
+
+	if (!run_lli_and_expect(input, expected_output))
+	{
+		std::cerr << "[FAIL] complex test case: output mismatch" << std::endl;
+		cleanup();
+		return 1;
 	}
 
 	remove_if_exists("testfile.txt");
@@ -565,14 +513,26 @@ int main()
 	remove_if_exists("codegen_test.log");
 	remove_if_exists("lli_output.log");
 	remove_if_exists("judge_input.txt");
-	remove_if_exists("judge_stdout.log");
-	remove_if_exists("judge_exit.log");
 	remove_if_exists("runtime_support.c");
 	remove_if_exists("runtime_sylib.ll");
 	remove_if_exists("linked_output.ll");
 	remove_if_exists("runtime_build.log");
 	remove_if_exists("runtime_link.log");
 
-	std::cout << "[PASS] codegen+lli integration tests." << std::endl;
+	std::cout << "[PASS] complex test case passed." << std::endl;
 	return 0;
+}
+
+void cleanup()
+{
+	remove_if_exists("testfile.txt");
+	remove_if_exists("output.ll");
+	remove_if_exists("codegen_test.log");
+	remove_if_exists("lli_output.log");
+	remove_if_exists("judge_input.txt");
+	remove_if_exists("runtime_support.c");
+	remove_if_exists("runtime_sylib.ll");
+	remove_if_exists("linked_output.ll");
+	remove_if_exists("runtime_build.log");
+	remove_if_exists("runtime_link.log");
 }

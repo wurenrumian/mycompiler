@@ -34,320 +34,353 @@
 
 namespace
 {
-/**
- * @brief 执行系统命令
- * @param command 要执行的命令字符串
- * @return 命令的退出码
- */
-int run_command(const std::string &command)
-{
-	return std::system(command.c_str());
-}
-
-/**
- * @brief 检查命令是否存在
- * @param exe 可执行文件名或完整路径
- * @return 存在返回 true，否则返回 false
- */
-bool command_exists(const std::string &exe)
-{
-#ifdef _WIN32
-	const std::string cmd = exe + " --version >NUL 2>&1";
-#else
-	const std::string cmd = exe + " --version >/dev/null 2>&1";
-#endif
-	return run_command(cmd) == 0;
-}
-
-/**
- * @brief 拼接目录和文件名
- * @param dir 目录路径
- * @param name 文件名
- * @return 拼接后的完整路径
- */
-std::string join_path(const std::string &dir, const std::string &name)
-{
-	if (dir.empty())
+	/**
+	 * @brief 执行系统命令
+	 * @param command 要执行的命令字符串
+	 * @return 命令的退出码
+	 */
+	int run_command(const std::string &command)
 	{
-		return name;
-	}
-	const char last = dir[dir.size() - 1];
-	if (last == '\\' || last == '/')
-	{
-		return dir + name;
+		return std::system(command.c_str());
 	}
 
-#ifdef _WIN32
-	return dir + "\\" + name;
-#else
-	return dir + "/" + name;
-#endif
-}
-
-char path_list_separator()
-{
-#ifdef _WIN32
-	return ';';
-#else
-	return ':';
-#endif
-}
-
-const char *lli_executable_name()
-{
-#ifdef _WIN32
-	return "lli.exe";
-#else
-	return "lli";
-#endif
-}
-
-const char *clang_executable_name()
-{
-#ifdef _WIN32
-	return "clang.exe";
-#else
-	return "clang";
-#endif
-}
-
-/**
- * @brief 在 lli 所在目录查找同版本的 clang
- *
- * 查找策略：
- * - 遍历 PATH 环境变量中的每个目录
- * - 检查是否存在 lli.exe 和 clang.exe
- * - 返回找到的 clang.exe 路径
- *
- * @return 找到的 clang 路径，未找到则返回空字符串
- */
-std::string find_lli_sibling_clang()
-{
-	const char *path_env = std::getenv("PATH");
-	if (path_env == nullptr)
+	/**
+	 * @brief 检查命令是否存在
+	 * @param exe 可执行文件名或完整路径
+	 * @return 存在返回 true，否则返回 false
+	 */
+	bool command_exists(const std::string &exe)
 	{
+#ifdef _WIN32
+		const std::string cmd = exe + " --version >NUL 2>&1";
+#else
+		const std::string cmd = exe + " --version >/dev/null 2>&1";
+#endif
+		return run_command(cmd) == 0;
+	}
+
+	/**
+	 * @brief 拼接目录和文件名
+	 * @param dir 目录路径
+	 * @param name 文件名
+	 * @return 拼接后的完整路径
+	 */
+	std::string join_path(const std::string &dir, const std::string &name)
+	{
+		if (dir.empty())
+		{
+			return name;
+		}
+		const char last = dir[dir.size() - 1];
+		if (last == '\\' || last == '/')
+		{
+			return dir + name;
+		}
+
+#ifdef _WIN32
+		return dir + "\\" + name;
+#else
+		return dir + "/" + name;
+#endif
+	}
+
+	char path_list_separator()
+	{
+#ifdef _WIN32
+		return ';';
+#else
+		return ':';
+#endif
+	}
+
+	const char *lli_executable_name()
+	{
+#ifdef _WIN32
+		return "lli.exe";
+#else
+		return "lli";
+#endif
+	}
+
+	const char *clang_executable_name()
+	{
+#ifdef _WIN32
+		return "clang.exe";
+#else
+		return "clang";
+#endif
+	}
+
+	/**
+	 * @brief 在 lli 所在目录查找同版本的 clang
+	 *
+	 * 查找策略：
+	 * - 遍历 PATH 环境变量中的每个目录
+	 * - 检查是否存在 lli.exe 和 clang.exe
+	 * - 返回找到的 clang.exe 路径
+	 *
+	 * @return 找到的 clang 路径，未找到则返回空字符串
+	 */
+	std::string find_lli_sibling_clang()
+	{
+		const char *path_env = std::getenv("PATH");
+		if (path_env == nullptr)
+		{
+			return std::string();
+		}
+
+		const std::string path_value(path_env);
+		size_t start = 0;
+		const char separator = path_list_separator();
+		while (start <= path_value.size())
+		{
+			size_t end = path_value.find(separator, start);
+			const std::string entry = path_value.substr(start, end == std::string::npos ? std::string::npos : end - start);
+			if (!entry.empty())
+			{
+				const std::string lli_path = join_path(entry, lli_executable_name());
+				const std::string clang_path = join_path(entry, clang_executable_name());
+				std::ifstream lli_file(lli_path.c_str(), std::ios::binary);
+				std::ifstream clang_file(clang_path.c_str(), std::ios::binary);
+				if (lli_file.good() && clang_file.good() && command_exists(clang_path))
+				{
+					return clang_path;
+				}
+			}
+			if (end == std::string::npos)
+			{
+				break;
+			}
+			start = end + 1;
+		}
+
 		return std::string();
 	}
 
-	const std::string path_value(path_env);
-	size_t start = 0;
-	const char separator = path_list_separator();
-	while (start <= path_value.size())
+	/**
+	 * @brief 查找可用的 clang 可执行文件
+	 *
+	 * 查找优先级：
+	 * 1. LLVM_CLANG 环境变量指定的值
+	 * 2. lli 同目录的 clang
+	 * 3. PATH 中的 clang, clang-18, clang-17, clang-16
+	 *
+	 * @return 找到的 clang 路径，未找到则返回空字符串
+	 */
+	std::string find_clang_executable()
 	{
-		size_t end = path_value.find(separator, start);
-		const std::string entry = path_value.substr(start, end == std::string::npos ? std::string::npos : end - start);
-		if (!entry.empty())
+		/** 优先级 1: 环境变量指定 */
+		const char *from_env = std::getenv("LLVM_CLANG");
+		if (from_env != nullptr && from_env[0] != '\0' && command_exists(from_env))
 		{
-			const std::string lli_path = join_path(entry, lli_executable_name());
-			const std::string clang_path = join_path(entry, clang_executable_name());
-			std::ifstream lli_file(lli_path.c_str(), std::ios::binary);
-			std::ifstream clang_file(clang_path.c_str(), std::ios::binary);
-			if (lli_file.good() && clang_file.good() && command_exists(clang_path))
+			return std::string(from_env);
+		}
+
+		/** 优先级 2: lli 同目录 */
+		const std::string sibling = find_lli_sibling_clang();
+		if (!sibling.empty())
+		{
+			return sibling;
+		}
+
+		/** 优先级 3: PATH 中的常见 clang 版本 */
+		const char *candidates[] = {
+			"clang", "clang-18", "clang-17", "clang-16", "clang-15", "clang-14", "clang-13", "clang-12"};
+		for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); ++i)
+		{
+			if (command_exists(candidates[i]))
 			{
-				return clang_path;
+				return std::string(candidates[i]);
 			}
 		}
-		if (end == std::string::npos)
+
+		return std::string();
+	}
+
+	/**
+	 * @brief 生成 SysY 运行时库函数实现
+	 *
+	 * 输出 C 代码形式的运行时库：
+	 * - getint/getch: 从标准输入读取
+	 * - putint/putch: 输出到标准输出
+	 * - getarray/putarray: 数组输入输出
+	 * - starttime/stoptime: 性能计时 (空实现)
+	 */
+	std::string build_driver_prelude()
+	{
+		std::ostringstream os;
+		os << "int vprintf(const char *a, __builtin_va_list args);\n";
+		os << "int getint(void);\n";
+		os << "int getch(void);\n";
+		os << "int getarray(int a[]);\n";
+		os << "void putint(int a);\n";
+		os << "void putch(int a);\n";
+		os << "void putarray(int n, int a[]);\n";
+		os << "void putf(char a[], ...);\n";
+		os << "void _sysy_starttime(int lineno);\n";
+		os << "void _sysy_stoptime(int lineno);\n";
+		os << "static int __my_has_output = 0;\n";
+		os << "static int __my_last_is_newline = 1;\n";
+		os << "static void __my_putint(int a) { putint(a); __my_has_output = 1; __my_last_is_newline = 0; }\n";
+		os << "static void __my_putch(int a) { putch(a); __my_has_output = 1; __my_last_is_newline = (a == '\\n'); }\n";
+		os << "static void __my_putarray(int n, int a[]) { putarray(n, a); __my_has_output = 1; __my_last_is_newline = 1; }\n";
+		os << "static void __my_putf(char a[], ...) { __builtin_va_list args; __builtin_va_start(args, a); vprintf(a, args); __builtin_va_end(args); __my_has_output = 1; int i = 0; while (a[i] != '\\0') ++i; __my_last_is_newline = (i > 0 && a[i - 1] == '\\n'); }\n";
+		os << "#define starttime() _sysy_starttime(__LINE__)\n";
+		os << "#define stoptime() _sysy_stoptime(__LINE__)\n";
+		os << "#define putint __my_putint\n";
+		os << "#define putch __my_putch\n";
+		os << "#define putarray __my_putarray\n";
+		os << "#define putf __my_putf\n";
+		os << "#define printf __my_putf\n";
+		os << "#define main _mycompiler_main\n\n";
+		return os.str();
+	}
+
+	/**
+	 * @brief 生成 main 函数包装器
+	 *
+	 * 在用户代码之后添加 main 包装器，
+	 * 该包装器调用用户的 main 函数（原 _mycompiler_main）
+	 * 并将返回值打印到标准输出。
+	 */
+	std::string build_main_wrapper()
+	{
+		std::ostringstream os;
+		os << "\n#undef main\n";
+		os << "int main() {\n";
+		os << "    int ret = _mycompiler_main();\n";
+		os << "    if (__my_has_output && !__my_last_is_newline) putch('\\n');\n";
+		os << "    int ret_mod = ((ret % 256) + 256) % 256;\n";
+		os << "    putint(ret_mod);\n";
+		os << "    putch('\\n');\n";
+		os << "    return ret;\n";
+		os << "}\n";
+		return os.str();
+	}
+
+	/**
+	 * @brief 去除字符串首尾空白字符
+	 * @param text 输入字符串
+	 * @return 去除空白后的字符串
+	 */
+	std::string trim_copy(const std::string &text)
+	{
+		size_t begin = 0;
+		while (begin < text.size() && std::isspace(static_cast<unsigned char>(text[begin])) != 0)
 		{
-			break;
+			++begin;
 		}
-		start = end + 1;
-	}
 
-	return std::string();
-}
-
-/**
- * @brief 查找可用的 clang 可执行文件
- *
- * 查找优先级：
- * 1. LLVM_CLANG 环境变量指定的值
- * 2. lli 同目录的 clang
- * 3. PATH 中的 clang, clang-18, clang-17, clang-16
- *
- * @return 找到的 clang 路径，未找到则返回空字符串
- */
-std::string find_clang_executable()
-{
-	/** 优先级 1: 环境变量指定 */
-	const char *from_env = std::getenv("LLVM_CLANG");
-	if (from_env != nullptr && from_env[0] != '\0' && command_exists(from_env))
-	{
-		return std::string(from_env);
-	}
-
-	/** 优先级 2: lli 同目录 */
-	const std::string sibling = find_lli_sibling_clang();
-	if (!sibling.empty())
-	{
-		return sibling;
-	}
-
-	/** 优先级 3: PATH 中的常见 clang 版本 */
-	const char *candidates[] = {
-		"clang", "clang-18", "clang-17", "clang-16", "clang-15", "clang-14", "clang-13", "clang-12"
-	};
-	for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); ++i)
-	{
-		if (command_exists(candidates[i]))
+		size_t end = text.size();
+		while (end > begin && std::isspace(static_cast<unsigned char>(text[end - 1])) != 0)
 		{
-			return std::string(candidates[i]);
+			--end;
 		}
+
+		return text.substr(begin, end - begin);
 	}
 
-	return std::string();
-}
-
-/**
- * @brief 生成 SysY 运行时库函数实现
- *
- * 输出 C 代码形式的运行时库：
- * - getint/getch: 从标准输入读取
- * - putint/putch: 输出到标准输出
- * - getarray/putarray: 数组输入输出
- * - starttime/stoptime: 性能计时 (空实现)
- */
-std::string build_driver_prelude()
-{
-	std::ostringstream os;
-	os << "int getint(void);\n";
-	os << "int getch(void);\n";
-	os << "int getarray(int a[]);\n";
-	os << "void putint(int a);\n";
-	os << "void putch(int a);\n";
-	os << "void putarray(int n, int a[]);\n";
-	os << "void putf(char a[], ...);\n";
-	os << "void _sysy_starttime(int lineno);\n";
-	os << "void _sysy_stoptime(int lineno);\n";
-	os << "#define starttime() _sysy_starttime(__LINE__)\n";
-	os << "#define stoptime() _sysy_stoptime(__LINE__)\n";
-	os << "#define printf putf\n\n";
-	return os.str();
-}
-
-/**
- * @brief 去除字符串首尾空白字符
- * @param text 输入字符串
- * @return 去除空白后的字符串
- */
-std::string trim_copy(const std::string &text)
-{
-	size_t begin = 0;
-	while (begin < text.size() && std::isspace(static_cast<unsigned char>(text[begin])) != 0)
+	/**
+	 * @brief 判断一行是否为内置函数声明
+	 *
+	 * SysY 内置函数包括：
+	 * getint, getch, getarray, putint, putch, putarray, putf,
+	 * starttime, stoptime, _sysy_starttime, _sysy_stoptime
+	 *
+	 * @param line 源代码行
+	 * @return 是内置函数声明返回 true
+	 */
+	bool is_builtin_decl_line(const std::string &line)
 	{
-		++begin;
-	}
+		static const char *names[] = {
+			"getint", "getch", "getarray", "putint", "putch", "putarray", "putf",
+			"starttime", "stoptime", "_sysy_starttime", "_sysy_stoptime"};
 
-	size_t end = text.size();
-	while (end > begin && std::isspace(static_cast<unsigned char>(text[end - 1])) != 0)
-	{
-		--end;
-	}
+		const std::string t = trim_copy(line);
+		if (t.empty() || t[t.size() - 1] != ';')
+		{
+			return false;
+		}
 
-	return text.substr(begin, end - begin);
-}
+		if (!(t.find("int ") == 0 || t.find("void ") == 0 || t.find("const int ") == 0))
+		{
+			return false;
+		}
 
-/**
- * @brief 判断一行是否为内置函数声明
- *
- * SysY 内置函数包括：
- * getint, getch, getarray, putint, putch, putarray, putf,
- * starttime, stoptime, _sysy_starttime, _sysy_stoptime
- *
- * @param line 源代码行
- * @return 是内置函数声明返回 true
- */
-bool is_builtin_decl_line(const std::string &line)
-{
-	static const char *names[] = {
-		"getint", "getch", "getarray", "putint", "putch", "putarray", "putf",
-		"starttime", "stoptime", "_sysy_starttime", "_sysy_stoptime"};
+		for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); ++i)
+		{
+			const std::string needle = std::string(names[i]) + "(";
+			const size_t pos = t.find(needle);
+			if (pos != std::string::npos)
+			{
+				const std::string prefix = trim_copy(t.substr(0, pos));
+				if (prefix == "int" || prefix == "void" || prefix == "const int")
+				{
+					return true;
+				}
+			}
+		}
 
-	const std::string t = trim_copy(line);
-	if (t.empty() || t[t.size() - 1] != ';')
-	{
 		return false;
 	}
 
-	if (!(t.find("int ") == 0 || t.find("void ") == 0 || t.find("const int ") == 0))
+	/**
+	 * @brief 从源代码中移除内置函数声明
+	 *
+	 * 因为内置函数会在 driver_prelude 中提供实现，
+	 * 所以源文件中的声明需要移除以避免重复定义。
+	 *
+	 * @param source 原始源代码
+	 * @return 移除内置函数声明后的源代码
+	 */
+	std::string strip_builtin_declarations(const std::string &source)
 	{
-		return false;
-	}
+		std::istringstream in(source);
+		std::ostringstream out;
+		std::string line;
 
-	for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); ++i)
-	{
-		const std::string needle = std::string(names[i]) + "(";
-		const size_t pos = t.find(needle);
-		if (pos != std::string::npos)
+		while (std::getline(in, line))
 		{
-			const std::string prefix = trim_copy(t.substr(0, pos));
-			if (prefix == "int" || prefix == "void" || prefix == "const int")
+			if (!is_builtin_decl_line(line))
 			{
-				return true;
+				out << line << '\n';
 			}
 		}
+
+		return out.str();
 	}
 
-	return false;
-}
-
-/**
- * @brief 从源代码中移除内置函数声明
- *
- * 因为内置函数会在 driver_prelude 中提供实现，
- * 所以源文件中的声明需要移除以避免重复定义。
- *
- * @param source 原始源代码
- * @return 移除内置函数声明后的源代码
- */
-std::string strip_builtin_declarations(const std::string &source)
-{
-	std::istringstream in(source);
-	std::ostringstream out;
-	std::string line;
-
-	while (std::getline(in, line))
+	/**
+	 * @brief 移除 LLVM IR 中的主机特定行
+	 *
+	 * 移除的内容：
+	 * - target datalayout: 目标数据布局 (包含主机特定信息)
+	 * - target triple: 目标三元组 (包含主机特定信息)
+	 *
+	 * 这些信息会导致生成的 IR 不可移植，
+	 * 移除后 IR 可以在不同的 LLVM 环境下运行。
+	 *
+	 * @param ir 原始 LLVM IR 文本
+	 * @return 清理后的 LLVM IR 文本
+	 */
+	std::string strip_host_specific_llvm_module_lines(const std::string &ir)
 	{
-		if (!is_builtin_decl_line(line))
+		std::istringstream in(ir);
+		std::ostringstream out;
+		std::string line;
+
+		while (std::getline(in, line))
 		{
+			const std::string trimmed = trim_copy(line);
+			if (trimmed.find("target datalayout = ") == 0 || trimmed.find("target triple = ") == 0)
+			{
+				continue;
+			}
 			out << line << '\n';
 		}
+
+		return out.str();
 	}
-
-	return out.str();
-}
-
-/**
- * @brief 移除 LLVM IR 中的主机特定行
- *
- * 移除的内容：
- * - target datalayout: 目标数据布局 (包含主机特定信息)
- * - target triple: 目标三元组 (包含主机特定信息)
- *
- * 这些信息会导致生成的 IR 不可移植，
- * 移除后 IR 可以在不同的 LLVM 环境下运行。
- *
- * @param ir 原始 LLVM IR 文本
- * @return 清理后的 LLVM IR 文本
- */
-std::string strip_host_specific_llvm_module_lines(const std::string &ir)
-{
-	std::istringstream in(ir);
-	std::ostringstream out;
-	std::string line;
-
-	while (std::getline(in, line))
-	{
-		const std::string trimmed = trim_copy(line);
-		if (trimmed.find("target datalayout = ") == 0 || trimmed.find("target triple = ") == 0)
-		{
-			continue;
-		}
-		out << line << '\n';
-	}
-
-	return out.str();
-}
 } // namespace
 
 /**
@@ -410,9 +443,9 @@ CodegenOptions LLVMIRGenerator::from_environment()
  * @return 成功返回 true，失败返回 false
  */
 bool LLVMIRGenerator::generate_from_file(const std::string &input_path,
-					 const std::string &output_path,
-					 const CodegenOptions &options,
-					 std::string *error_message) const
+										 const std::string &output_path,
+										 const CodegenOptions &options,
+										 std::string *error_message) const
 {
 	/** 步骤 1: 打开源文件 */
 	std::ifstream input(input_path.c_str(), std::ios::binary);
@@ -498,6 +531,7 @@ bool LLVMIRGenerator::generate_from_file(const std::string &input_path,
 
 	temp << build_driver_prelude();
 	temp << stripped_source;
+	temp << build_main_wrapper();
 	temp.close();
 
 	/** 步骤 7: 查找 clang 可执行文件 */
@@ -535,7 +569,7 @@ bool LLVMIRGenerator::generate_from_file(const std::string &input_path,
 		if (error_message != nullptr)
 		{
 			*error_message = "clang failed while generating LLVM IR from temporary source: " + temp_source_file +
-				" (clang=" + clang_exe + ")";
+							 " (clang=" + clang_exe + ")";
 		}
 		return false;
 	}
