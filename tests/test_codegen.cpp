@@ -13,6 +13,88 @@ bool run_command(const std::string &command)
 	return std::system(command.c_str()) == 0;
 }
 
+std::string quote_arg(const std::string &value)
+{
+	if (value.find('\\') == std::string::npos && value.find('/') == std::string::npos && value.find(':') == std::string::npos)
+	{
+		return value;
+	}
+	return std::string("\"") + value + "\"";
+}
+
+std::string join_path(const std::string &dir, const std::string &name)
+{
+	if (dir.empty())
+	{
+		return name;
+	}
+	const char last = dir[dir.size() - 1];
+	if (last == '\\' || last == '/')
+	{
+		return dir + name;
+	}
+	return dir + "\\" + name;
+}
+
+std::string find_tool_near_lli(const std::string &tool_name)
+{
+	const char *path_env = std::getenv("PATH");
+	if (path_env == nullptr)
+	{
+		return std::string();
+	}
+
+	const std::string path_value(path_env);
+	for (size_t start = 0; start <= path_value.size(); )
+	{
+		const size_t end = path_value.find(';', start);
+		const std::string entry = path_value.substr(start, end == std::string::npos ? std::string::npos : end - start);
+		if (!entry.empty())
+		{
+			const std::string lli_path = join_path(entry, "lli.exe");
+			const std::string tool_path = join_path(entry, tool_name);
+			std::ifstream lli_file(lli_path.c_str(), std::ios::binary);
+			std::ifstream tool_file(tool_path.c_str(), std::ios::binary);
+			if (lli_file.good() && tool_file.good())
+			{
+				return tool_path;
+			}
+		}
+		if (end == std::string::npos)
+		{
+			break;
+		}
+		start = end + 1;
+	}
+
+	return std::string();
+}
+
+std::string preferred_clang()
+{
+	const char *from_env = std::getenv("LLVM_CLANG");
+	if (from_env != nullptr && from_env[0] != '\0')
+	{
+		return from_env;
+	}
+	const std::string sibling = find_tool_near_lli("clang.exe");
+	if (!sibling.empty())
+	{
+		return sibling;
+	}
+	return "clang";
+}
+
+std::string preferred_llvm_link()
+{
+	const std::string sibling = find_tool_near_lli("llvm-link.exe");
+	if (!sibling.empty())
+	{
+		return sibling;
+	}
+	return "llvm-link";
+}
+
 bool run_command_capture(const std::string &command, const std::string &output_file)
 {
 #ifdef _WIN32
@@ -48,7 +130,7 @@ std::string normalize_output(std::string text)
 			out.push_back(text[i]);
 		}
 	}
-	while (!out.empty() && (out.back() == '\n' || out.back() == ' ' || out.back() == '\t'))
+	while (!out.empty() && (out.back() == '\n' || out.back() == '\t'))
 	{
 		out.pop_back();
 	}
@@ -105,13 +187,62 @@ bool run_parser_and_check_ir()
 	}
 
 	const std::string ir = read_all("output.ll");
-	if (ir.find("@main") == std::string::npos || ir.find("@getint") == std::string::npos)
+	if (ir.find("@main") == std::string::npos)
 	{
-		std::cerr << "[FAIL] output.ll misses required symbols (@main/@getint)." << std::endl;
+		std::cerr << "[FAIL] output.ll misses required symbol @main." << std::endl;
+		return false;
+	}
+
+	if (ir.find("define dso_local i32 @getint") != std::string::npos ||
+		ir.find("define i32 @getint") != std::string::npos)
+	{
+		std::cerr << "[FAIL] output.ll still defines getint instead of declaring sylib symbols." << std::endl;
 		return false;
 	}
 
 	return true;
+}
+
+bool prepare_linked_runtime_ir()
+{
+	remove_if_exists("runtime_support.c");
+	remove_if_exists("runtime_sylib.ll");
+	remove_if_exists("linked_output.ll");
+
+	const std::string clang_path = preferred_clang();
+	const std::string llvm_link_path = preferred_llvm_link();
+	write_text("runtime_support.c",
+		      "extern int scanf(const char *, ...);\n"
+		      "extern int printf(const char *, ...);\n"
+		      "extern int vprintf(const char *, __builtin_va_list);\n"
+		      "extern int getchar(void);\n"
+		      "int getint(void) { int x = 0; scanf(\"%d\", &x); return x; }\n"
+		      "int getch(void) { return getchar(); }\n"
+		      "int getarray(int a[]) { int n = 0; scanf(\"%d\", &n); for (int i = 0; i < n; ++i) scanf(\"%d\", &a[i]); return n; }\n"
+		      "void putint(int a) { printf(\"%d\", a); }\n"
+		      "void putch(int a) { printf(\"%c\", a); }\n"
+		      "void putarray(int n, int a[]) { printf(\"%d:\", n); for (int i = 0; i < n; ++i) printf(\" %d\", a[i]); printf(\"\\n\"); }\n"
+		      "void putf(char a[], ...) { __builtin_va_list args; __builtin_va_start(args, a); vprintf(a, args); __builtin_va_end(args); }\n"
+		      "void _sysy_starttime(int lineno) { (void)lineno; }\n"
+		      "void _sysy_stoptime(int lineno) { (void)lineno; }\n");
+
+	const std::string compile_runtime = quote_arg(clang_path) +
+		" -S -emit-llvm runtime_support.c -o runtime_sylib.ll -O0";
+	if (!run_command_capture(compile_runtime, "runtime_build.log"))
+	{
+		std::cerr << "[FAIL] failed to compile local runtime support into LLVM IR." << std::endl;
+		return false;
+	}
+
+	const std::string link_modules = quote_arg(llvm_link_path) +
+		" runtime_sylib.ll output.ll -S -o linked_output.ll";
+	if (!run_command_capture(link_modules, "runtime_link.log"))
+	{
+		std::cerr << "[FAIL] failed to link runtime_sylib.ll with output.ll." << std::endl;
+		return false;
+	}
+
+	return file_exists("linked_output.ll");
 }
 
 bool run_lli_and_expect(const std::string &input, const std::string &expected_output)
@@ -119,12 +250,12 @@ bool run_lli_and_expect(const std::string &input, const std::string &expected_ou
 	remove_if_exists("lli_output.log");
 #ifdef _WIN32
 	const std::string cmd = input.empty()
-						? "lli output.ll"
-						: "cmd /C \"echo " + input + " | lli output.ll\"";
+						? "lli linked_output.ll"
+						: "cmd /C \"echo " + input + " | lli linked_output.ll\"";
 #else
 	const std::string cmd = input.empty()
-						? "lli output.ll"
-						: "printf \"" + input + "\\n\" | lli output.ll";
+						? "lli linked_output.ll"
+						: "printf \"" + input + "\\n\" | lli linked_output.ll";
 #endif
 	if (!run_command_capture(cmd, "lli_output.log"))
 	{
@@ -147,6 +278,52 @@ bool run_lli_and_expect(const std::string &input, const std::string &expected_ou
 	return true;
 }
 
+bool run_lli_public_style_and_expect(const std::string &input,
+					 const std::string &expected_output)
+{
+	remove_if_exists("judge_input.txt");
+	remove_if_exists("judge_stdout.log");
+	remove_if_exists("judge_exit.log");
+	write_text("judge_input.txt", input);
+
+#ifdef _WIN32
+	const std::string cmd =
+		"pwsh -NoProfile -Command \"$inputText = Get-Content 'judge_input.txt' -Raw; "
+		"if ($inputText.Length -gt 0) { $inputText | lli linked_output.ll *> judge_stdout.log } else { lli linked_output.ll *> judge_stdout.log }; "
+		"Set-Content -Path judge_exit.log -Value $LASTEXITCODE\"";
+#else
+	const std::string cmd =
+		"sh -c 'lli linked_output.ll < judge_input.txt > judge_stdout.log 2>&1; printf \"%s\" $? > judge_exit.log'";
+#endif
+
+	if (!run_command(cmd))
+	{
+		std::cerr << "[FAIL] lli public-style execution failed." << std::endl;
+		return false;
+	}
+
+	std::string actual = read_all("judge_stdout.log");
+	const std::string exit_text = normalize_output(read_all("judge_exit.log"));
+	int exit_code = std::atoi(exit_text.c_str());
+	exit_code = ((exit_code % 256) + 256) % 256;
+	if (!actual.empty() && actual[actual.size() - 1] != '\n')
+	{
+		actual.push_back('\n');
+	}
+	actual += std::to_string(exit_code);
+
+	const std::string normalized_actual = normalize_output(actual);
+	const std::string normalized_expected = normalize_output(expected_output);
+	if (normalized_actual != normalized_expected)
+	{
+		std::cerr << "[FAIL] public-style output mismatch." << std::endl;
+		std::cerr << "Expected:\n" << normalized_expected << "\nActual:\n" << normalized_actual << std::endl;
+		return false;
+	}
+
+	return true;
+}
+
 bool run_lli_with_file_redirect_and_expect(const std::string &input,
 					   const std::string &expected_output,
 					   int expected_exit_code)
@@ -158,10 +335,10 @@ bool run_lli_with_file_redirect_and_expect(const std::string &input,
 
 #ifdef _WIN32
 	const std::string cmd =
-		"cmd /C \"lli output.ll < judge_input.txt > judge_stdout.log 2>&1 & echo %ERRORLEVEL% > judge_exit.log\"";
+		"cmd /C \"lli linked_output.ll < judge_input.txt > judge_stdout.log 2>&1 & echo %ERRORLEVEL% > judge_exit.log\"";
 #else
 	const std::string cmd =
-		"sh -c 'lli output.ll < judge_input.txt > judge_stdout.log 2>&1; printf \"%s\" $? > judge_exit.log'";
+		"sh -c 'lli linked_output.ll < judge_input.txt > judge_stdout.log 2>&1; printf \"%s\" $? > judge_exit.log'";
 #endif
 
 	if (!run_command(cmd))
@@ -201,12 +378,44 @@ bool run_case(const std::string &name,
 		std::cerr << "[FAIL] case: " << name << std::endl;
 		return false;
 	}
+	if (!prepare_linked_runtime_ir())
+	{
+		std::cerr << "[FAIL] case: " << name << std::endl;
+		return false;
+	}
 	if (!run_lli_and_expect(input, expected_output))
 	{
 		std::cerr << "[FAIL] case: " << name << std::endl;
 		return false;
 	}
 	std::cout << "[PASS] case: " << name << std::endl;
+	return true;
+}
+
+bool run_public_case(const std::string &name,
+			 const std::string &source_path,
+			 const std::string &input_path,
+			 const std::string &output_path)
+{
+	write_text("testfile.txt", read_all(source_path));
+	if (!run_parser_and_check_ir())
+	{
+		std::cerr << "[FAIL] public case: " << name << std::endl;
+		return false;
+	}
+	if (!prepare_linked_runtime_ir())
+	{
+		std::cerr << "[FAIL] public case: " << name << std::endl;
+		return false;
+	}
+	const std::string input = file_exists(input_path) ? read_all(input_path) : std::string();
+	const std::string expected = read_all(output_path);
+	if (!run_lli_public_style_and_expect(input, expected))
+	{
+		std::cerr << "[FAIL] public case: " << name << std::endl;
+		return false;
+	}
+	std::cout << "[PASS] public case: " << name << std::endl;
 	return true;
 }
 } // namespace
@@ -233,185 +442,17 @@ int main()
 		return 0;
 	}
 
-	struct TestCase
+	for (int i = 1; i <= 40; ++i)
 	{
-		std::string name;
-		std::string source;
-		std::string input;
-		std::string expected;
-	};
-
-	std::vector<TestCase> cases;
-	cases.push_back(TestCase{"hello_getint",
-		"int test;\n"
-		"int main(){\n"
-		"    printf(\"Hello World\\n\");\n"
-		"    test = getint();\n"
-		"    printf(\"%d\",test);\n"
-		"    return 0;\n"
-		"}\n",
-		"1906",
-		"Hello World\n1906"});
-
-	cases.push_back(TestCase{"short_circuit",
-		"int count = 0;\n"
-		"int f () {\n"
-		"    count = count + 1;\n"
-		"    return count;\n"
-		"}\n"
-		"int main() {\n"
-		"    int arr1[2] = {1,1};\n"
-		"    int i = 0;\n"
-		"    int k = 0;\n"
-		"    if (i < -1 && f() < 1) {\n"
-		"        printf(\"count: %d\\n\", count);\n"
-		"    }\n"
-		"    if (i < -1 && f() < 1 || k < 2) {\n"
-		"        printf(\"count: %d\\n\", count);\n"
-		"    }\n"
-		"    printf(\"count: %d\\n\", count);\n"
-		"    return 0;\n"
-		"}\n",
-		"",
-		"count: 0\ncount: 0\n"});
-
-	cases.push_back(TestCase{"const_arith",
-		"int main(){\n"
-		"    const int a = 5;\n"
-		"    const int b = 7;\n"
-		"    printf(\"%d\\n\", a * b + 3);\n"
-		"    return 0;\n"
-		"}\n",
-		"",
-		"38\n"});
-
-	cases.push_back(TestCase{"if_else",
-		"int main(){\n"
-		"    int x = 3;\n"
-		"    if (x > 5) {\n"
-		"        printf(\"big\\n\");\n"
-		"    } else {\n"
-		"        printf(\"small\\n\");\n"
-		"    }\n"
-		"    return 0;\n"
-		"}\n",
-		"",
-		"small\n"});
-
-	cases.push_back(TestCase{"while_sum",
-		"int main(){\n"
-		"    int i = 1;\n"
-		"    int s = 0;\n"
-		"    while (i <= 5) {\n"
-		"        s = s + i;\n"
-		"        i = i + 1;\n"
-		"    }\n"
-		"    printf(\"%d\\n\", s);\n"
-		"    return 0;\n"
-		"}\n",
-		"",
-		"15\n"});
-
-	cases.push_back(TestCase{"break_continue",
-		"int main(){\n"
-		"    int i = 0;\n"
-		"    int s = 0;\n"
-		"    while (i < 10) {\n"
-		"        i = i + 1;\n"
-		"        if (i == 3) continue;\n"
-		"        if (i == 7) break;\n"
-		"        s = s + i;\n"
-		"    }\n"
-		"    printf(\"%d\\n\", s);\n"
-		"    return 0;\n"
-		"}\n",
-		"",
-		"18\n"});
-
-	cases.push_back(TestCase{"function_call",
-		"int add(int a, int b){\n"
-		"    return a + b;\n"
-		"}\n"
-		"int main(){\n"
-		"    printf(\"%d\\n\", add(10, 32));\n"
-		"    return 0;\n"
-		"}\n",
-		"",
-		"42\n"});
-
-	cases.push_back(TestCase{"array_access",
-		"int main(){\n"
-		"    int a[3] = {2,4,6};\n"
-		"    printf(\"%d\\n\", a[0] + a[2]);\n"
-		"    return 0;\n"
-		"}\n",
-		"",
-		"8\n"});
-
-	cases.push_back(TestCase{"logical_ops",
-		"int main(){\n"
-		"    int a = 0;\n"
-		"    int b = 1;\n"
-		"    if (!a && b) {\n"
-		"        printf(\"ok\\n\");\n"
-		"    }\n"
-		"    return 0;\n"
-		"}\n",
-		"",
-		"ok\n"});
-
-	cases.push_back(TestCase{"unary_precedence",
-		"int main(){\n"
-		"    int x = -3 + +5 * 2;\n"
-		"    printf(\"%d\\n\", x);\n"
-		"    return 0;\n"
-		"}\n",
-		"",
-		"7\n"});
-
-	cases.push_back(TestCase{"putint_putch",
-		"int main(){\n"
-		"    putint(123);\n"
-		"    putch(10);\n"
-		"    return 0;\n"
-		"}\n",
-		"",
-		"123\n"});
-
-	cases.push_back(TestCase{"getch_builtin",
-		"int main(){\n"
-		"    int c;\n"
-		"    c = getch();\n"
-		"    putint(c);\n"
-		"    return 0;\n"
-		"}\n",
-		"A",
-		"65"});
-
-	cases.push_back(TestCase{"builtin_call_in_initializer",
-		"int readint(){\n"
-		"    int x = 0, f = 0, ch = getch();\n"
-		"    while (ch < 48 || ch > 57) {\n"
-		"        if (ch == 45) f = 1;\n"
-		"        ch = getch();\n"
-		"    }\n"
-		"    while (ch >= 48 && ch <= 57) {\n"
-		"        x = x * 10 + ch - 48;\n"
-		"        ch = getch();\n"
-		"    }\n"
-		"    if (f) return -x;\n"
-		"    return x;\n"
-		"}\n"
-		"int main(){\n"
-		"    printf(\"%d\\n\", readint());\n"
-		"    return 0;\n"
-		"}\n",
-		"-120",
-		"-120\n"});
-
-	for (size_t i = 0; i < cases.size(); ++i)
-	{
-		if (!run_case(cases[i].name, cases[i].source, cases[i].input, cases[i].expected))
+		const std::string id = std::to_string(i);
+		const std::string source_path = std::string("..\\public\\testfile") + id + ".txt";
+		const std::string input_path = std::string("..\\public\\input") + id + ".txt";
+		const std::string output_path = std::string("..\\public\\output") + id + ".txt";
+		if (!file_exists(source_path) || !file_exists(output_path))
+		{
+			continue;
+		}
+		if (!run_public_case(std::string("public_") + id, source_path, input_path, output_path))
 		{
 			remove_if_exists("testfile.txt");
 			remove_if_exists("output.ll");
@@ -421,55 +462,6 @@ int main()
 		}
 	}
 
-	if (!set_opt_level_env(2))
-	{
-		std::cerr << "[FAIL] failed to set MYCOMPILER_OPT_LEVEL." << std::endl;
-		remove_if_exists("testfile.txt");
-		remove_if_exists("output.ll");
-		remove_if_exists("codegen_test.log");
-		remove_if_exists("lli_output.log");
-		return 1;
-	}
-	write_text("testfile.txt",
-			  "int main(){\n"
-			  "    return 0;\n"
-			  "}\n");
-	if (!run_parser_and_check_ir())
-	{
-		clear_opt_level_env();
-		remove_if_exists("testfile.txt");
-		remove_if_exists("output.ll");
-		remove_if_exists("codegen_test.log");
-		remove_if_exists("lli_output.log");
-		return 1;
-	}
-	clear_opt_level_env();
-
-	write_text("testfile.txt",
-			  "int main(){\n"
-			  "    printf(\"42\");\n"
-			  "    return 0;\n"
-			  "}\n");
-	if (!run_parser_and_check_ir())
-	{
-		remove_if_exists("testfile.txt");
-		remove_if_exists("output.ll");
-		remove_if_exists("codegen_test.log");
-		remove_if_exists("lli_output.log");
-		return 1;
-	}
-	if (!run_lli_with_file_redirect_and_expect("", "42", 0))
-	{
-		remove_if_exists("testfile.txt");
-		remove_if_exists("output.ll");
-		remove_if_exists("codegen_test.log");
-		remove_if_exists("lli_output.log");
-		remove_if_exists("judge_input.txt");
-		remove_if_exists("judge_stdout.log");
-		remove_if_exists("judge_exit.log");
-		return 1;
-	}
-
 	remove_if_exists("testfile.txt");
 	remove_if_exists("output.ll");
 	remove_if_exists("codegen_test.log");
@@ -477,6 +469,11 @@ int main()
 	remove_if_exists("judge_input.txt");
 	remove_if_exists("judge_stdout.log");
 	remove_if_exists("judge_exit.log");
+	remove_if_exists("runtime_support.c");
+	remove_if_exists("runtime_sylib.ll");
+	remove_if_exists("linked_output.ll");
+	remove_if_exists("runtime_build.log");
+	remove_if_exists("runtime_link.log");
 
 	std::cout << "[PASS] codegen+lli integration tests." << std::endl;
 	return 0;

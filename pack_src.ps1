@@ -14,6 +14,8 @@ $Files = @(
     "include\\Semantic.h",
     "include\\Stream.h",
     "include\\Token.h",
+    "runtime\\sylib.c",
+    "runtime\\sylib.h",
     "src\\Ast.cpp",
     "src\\Codegen.cpp",
     "src\\Lexer.cpp",
@@ -41,14 +43,23 @@ function Collect-Files {
     $files = @()
     foreach ($path in $FilePaths) {
         if (Test-Path -LiteralPath $path -PathType Leaf) {
-            $files += Get-Item -LiteralPath $path
+            $files += [PSCustomObject]@{
+                RelativePath = $path
+                FileInfo = Get-Item -LiteralPath $path
+            }
         }
         else {
             Write-Warning "Missing required file: $path"
         }
     }
 
-    $files | Sort-Object -Property FullName -Unique | Sort-Object -Property FullName
+    $files | Sort-Object -Property RelativePath -Unique | Sort-Object -Property RelativePath
+}
+
+function Preserve-ArchivePath {
+    param([string]$RelativePath)
+
+    return $RelativePath.StartsWith("runtime\\")
 }
 
 Require-SevenZip
@@ -71,7 +82,20 @@ New-Item -Path $tempDir -ItemType Directory | Out-Null
 try {
     $nameCount = @{}
 
-    foreach ($file in $filesToPack) {
+    foreach ($entry in $filesToPack) {
+        $file = $entry.FileInfo
+        $relativePath = $entry.RelativePath
+
+        if (Preserve-ArchivePath -RelativePath $relativePath) {
+            $targetPath = Join-Path $tempDir $relativePath
+            $targetDir = Split-Path -Path $targetPath -Parent
+            if (!(Test-Path $targetDir)) {
+                New-Item -Path $targetDir -ItemType Directory -Force | Out-Null
+            }
+            Copy-Item -Path $file.FullName -Destination $targetPath
+            continue
+        }
+
         $baseName = $file.Name
 
         if ($nameCount.ContainsKey($baseName)) {
@@ -103,4 +127,4 @@ finally {
     }
 }
 
-Write-Host "Created $OutputZip with $($filesToPack.Count) source files (flat at archive root)."
+Write-Host "Created $OutputZip with $($filesToPack.Count) source files (runtime/ preserved)."
