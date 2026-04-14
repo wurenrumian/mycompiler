@@ -8,9 +8,13 @@
 .
 ├── CMakeLists.txt          # CMake 构建配置
 ├── README.md               # 项目说明
-├── OPERATIONS.md           # 详细操作文档
-├── problem.md              # 问题记录
-├── request.md              # 作业需求文档
+├── docs/                   # 项目文档
+│   ├── README.md          # 文档索引
+│   ├── requirements/      # 作业要求与文法规范
+│   ├── reference/         # LLVM IR 参考资料
+│   ├── issues/            # 问题记录
+│   ├── reports/           # 变更报告
+│   └── superpowers/       # 设计/计划流程文档
 ├── include/                # 头文件目录
 │   ├── common.h           # 通用工具（SourceLocation、char_util）
 │   ├── Stream.h           # 通用流模板类
@@ -29,6 +33,14 @@
 │   └── test_parser.cpp    # Parser 类测试
 └── build/                  # 构建目录（自动生成）
 ```
+
+## 文档索引
+
+- `docs/README.md`：文档导航入口
+- `docs/requirements/hw3-llvm-ir-assignment.md`：Homework 3 作业需求
+- `docs/requirements/sysy-grammar-2026.md`：2026 SysY 文法与补充约束
+- `docs/reference/llvm-ir-primer.md`：LLVM IR 学习资料
+- `docs/issues/judge-runtime-note.md`：评测相关问题记录
 
 ## 快速开始
 
