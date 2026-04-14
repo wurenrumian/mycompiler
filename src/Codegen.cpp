@@ -76,7 +76,39 @@ std::string join_path(const std::string &dir, const std::string &name)
 	{
 		return dir + name;
 	}
+
+#ifdef _WIN32
 	return dir + "\\" + name;
+#else
+	return dir + "/" + name;
+#endif
+}
+
+char path_list_separator()
+{
+#ifdef _WIN32
+	return ';';
+#else
+	return ':';
+#endif
+}
+
+const char *lli_executable_name()
+{
+#ifdef _WIN32
+	return "lli.exe";
+#else
+	return "lli";
+#endif
+}
+
+const char *clang_executable_name()
+{
+#ifdef _WIN32
+	return "clang.exe";
+#else
+	return "clang";
+#endif
 }
 
 /**
@@ -99,14 +131,15 @@ std::string find_lli_sibling_clang()
 
 	const std::string path_value(path_env);
 	size_t start = 0;
+	const char separator = path_list_separator();
 	while (start <= path_value.size())
 	{
-		size_t end = path_value.find(';', start);
+		size_t end = path_value.find(separator, start);
 		const std::string entry = path_value.substr(start, end == std::string::npos ? std::string::npos : end - start);
 		if (!entry.empty())
 		{
-			const std::string lli_path = join_path(entry, "lli.exe");
-			const std::string clang_path = join_path(entry, "clang.exe");
+			const std::string lli_path = join_path(entry, lli_executable_name());
+			const std::string clang_path = join_path(entry, clang_executable_name());
 			std::ifstream lli_file(lli_path.c_str(), std::ios::binary);
 			std::ifstream clang_file(clang_path.c_str(), std::ios::binary);
 			if (lli_file.good() && clang_file.good() && command_exists(clang_path))
@@ -151,7 +184,9 @@ std::string find_clang_executable()
 	}
 
 	/** 优先级 3: PATH 中的常见 clang 版本 */
-	const char *candidates[] = {"clang", "clang-18", "clang-17", "clang-16"};
+	const char *candidates[] = {
+		"clang", "clang-18", "clang-17", "clang-16", "clang-15", "clang-14", "clang-13", "clang-12"
+	};
 	for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); ++i)
 	{
 		if (command_exists(candidates[i]))
