@@ -24,6 +24,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cctype>
+#include <iostream>
 #include <fstream>
 #include <cstring>
 #include <sstream>
@@ -443,18 +444,23 @@ CodegenOptions LLVMIRGenerator::from_environment()
  * @return 成功返回 true，失败返回 false
  */
 bool LLVMIRGenerator::generate_from_file(const std::string &input_path,
-										 const std::string &output_path,
-										 const CodegenOptions &options,
-										 std::string *error_message) const
+						 const std::string &output_path,
+						 const CodegenOptions &options,
+						 std::string *error_message) const
 {
+	auto report_stage_error = [error_message](const std::string &stage, const std::string &message) {
+		std::cerr << "[codegen][" << stage << "] " << message << std::endl;
+		if (error_message != nullptr)
+		{
+			*error_message = "[" + stage + "] " + message;
+		}
+	};
+
 	/** 步骤 1: 打开源文件 */
 	std::ifstream input(input_path.c_str(), std::ios::binary);
 	if (!input.is_open())
 	{
-		if (error_message != nullptr)
-		{
-			*error_message = "Failed to open source file: " + input_path;
-		}
+		report_stage_error("lexer", "Failed to open source file: " + input_path);
 		return false;
 	}
 
@@ -469,10 +475,7 @@ bool LLVMIRGenerator::generate_from_file(const std::string &input_path,
 		std::ofstream parse_input(temp_parse_file.c_str(), std::ios::binary | std::ios::trunc);
 		if (!parse_input.is_open())
 		{
-			if (error_message != nullptr)
-			{
-				*error_message = "Failed to create parser input file: " + temp_parse_file;
-			}
+			report_stage_error("lexer", "Failed to create parser input file: " + temp_parse_file);
 			return false;
 		}
 		parse_input << stripped_source;
@@ -481,127 +484,152 @@ bool LLVMIRGenerator::generate_from_file(const std::string &input_path,
 	/** 步骤 4: 语法分析 - 解析为 AST */
 	std::unique_ptr<ast::CompUnit> ast_root;
 	std::string parse_error;
-	const bool parsed = parse_file_to_ast(temp_parse_file, &ast_root, &parse_error);
+	bool parsed = false;
+	try
+	{
+		parsed = parse_file_to_ast(temp_parse_file, &ast_root, &parse_error);
+	}
+	catch (const std::exception &e)
+	{
+		if (!options.keep_temporary_file)
+		{
+			std::remove(temp_parse_file.c_str());
+		}
+		report_stage_error("parser", std::string("Exception during parse: ") + e.what());
+		return false;
+	}
+	catch (...)
+	{
+		if (!options.keep_temporary_file)
+		{
+			std::remove(temp_parse_file.c_str());
+		}
+		report_stage_error("parser", "Unknown exception during parse.");
+		return false;
+	}
 	if (!options.keep_temporary_file)
 	{
 		std::remove(temp_parse_file.c_str());
 	}
 	if (!parsed)
 	{
-		if (error_message != nullptr)
-		{
-			*error_message = parse_error;
-		}
+		report_stage_error("parser", parse_error.empty() ? "Parser failed." : parse_error);
 		return false;
 	}
 
 	/** 检查 AST 是否为空 */
 	if (!ast_root || ast_root->items.empty())
 	{
-		if (error_message != nullptr)
-		{
-			*error_message = "Parser produced an empty AST.";
-		}
+		report_stage_error("parser", "Parser produced an empty AST.");
 		return false;
 	}
 
 	/** 步骤 5: 语义分析 */
 	semantic::ProgramInfo program_info;
 	std::string semantic_error;
-	if (!semantic::analyze_program(*ast_root, &program_info, &semantic_error))
+	try
 	{
-		if (error_message != nullptr)
+		if (!semantic::analyze_program(*ast_root, &program_info, &semantic_error))
 		{
-			*error_message = semantic_error;
+			report_stage_error("translator", semantic_error.empty() ? "Semantic analysis failed." : semantic_error);
+			return false;
 		}
+	}
+	catch (const std::exception &e)
+	{
+		report_stage_error("translator", std::string("Exception during semantic analysis: ") + e.what());
+		return false;
+	}
+	catch (...)
+	{
+		report_stage_error("translator", "Unknown exception during semantic analysis.");
 		return false;
 	}
 
 	/** 步骤 6: 生成临时 C 源代码文件 */
-	const std::string temp_source_file = "__tmp_codegen_input.c";
-	std::ofstream temp(temp_source_file.c_str(), std::ios::binary | std::ios::trunc);
-	if (!temp.is_open())
+	try
 	{
-		if (error_message != nullptr)
+		const std::string temp_source_file = "__tmp_codegen_input.c";
+		std::ofstream temp(temp_source_file.c_str(), std::ios::binary | std::ios::trunc);
+		if (!temp.is_open())
 		{
-			*error_message = "Failed to create temporary source file: " + temp_source_file;
+			report_stage_error("translator", "Failed to create temporary source file: " + temp_source_file);
+			return false;
 		}
-		return false;
-	}
 
-	temp << build_driver_prelude();
-	temp << stripped_source;
-	temp << build_main_wrapper();
-	temp.close();
+		temp << build_driver_prelude();
+		temp << stripped_source;
+		temp << build_main_wrapper();
+		temp.close();
 
-	/** 步骤 7: 查找 clang 可执行文件 */
-	const std::string clang_exe = find_clang_executable();
-	if (clang_exe.empty())
-	{
+		/** 步骤 7: 查找 clang 可执行文件 */
+		const std::string clang_exe = find_clang_executable();
+		if (clang_exe.empty())
+		{
+			if (!options.keep_temporary_file)
+			{
+				std::remove(temp_source_file.c_str());
+			}
+			report_stage_error("translator", "No clang executable found. Install LLVM/clang or set LLVM_CLANG.");
+			return false;
+		}
+
+		/** 步骤 8: 调用 clang 编译为 LLVM IR */
+		std::ostringstream cmd;
+		cmd << clang_exe
+			<< " -S -emit-llvm -x c"
+			<< " " << temp_source_file
+			<< " -o " << output_path
+			<< " -O" << (options.enable_optimizations ? options.optimization_level : 0);
+
+		const int status = run_command(cmd.str());
+
 		if (!options.keep_temporary_file)
 		{
 			std::remove(temp_source_file.c_str());
 		}
-		if (error_message != nullptr)
+
+		if (status != 0)
 		{
-			*error_message = "No clang executable found. Install LLVM/clang or set LLVM_CLANG.";
+			report_stage_error("translator",
+				"clang failed while generating LLVM IR from temporary source: " + temp_source_file +
+				" (clang=" + clang_exe + ")");
+			return false;
 		}
+
+		/** 步骤 9: 读取生成的 IR */
+		std::ifstream generated_ir(output_path.c_str(), std::ios::binary);
+		if (!generated_ir.is_open())
+		{
+			report_stage_error("translator", "Generated LLVM IR file is missing: " + output_path);
+			return false;
+		}
+
+		std::ostringstream ir_buffer;
+		ir_buffer << generated_ir.rdbuf();
+		generated_ir.close();
+
+		/** 步骤 10: 规范化 IR - 移除主机特定信息 */
+		std::ofstream normalized_ir(output_path.c_str(), std::ios::binary | std::ios::trunc);
+		if (!normalized_ir.is_open())
+		{
+			report_stage_error("translator", "Failed to normalize LLVM IR file: " + output_path);
+			return false;
+		}
+
+		normalized_ir << strip_host_specific_llvm_module_lines(ir_buffer.str());
+		normalized_ir.close();
+	}
+	catch (const std::exception &e)
+	{
+		report_stage_error("translator", std::string("Exception during LLVM IR translation: ") + e.what());
 		return false;
 	}
-
-	/** 步骤 8: 调用 clang 编译为 LLVM IR */
-	std::ostringstream cmd;
-	cmd << clang_exe
-		<< " -S -emit-llvm -x c"
-		<< " " << temp_source_file
-		<< " -o " << output_path
-		<< " -O" << (options.enable_optimizations ? options.optimization_level : 0);
-
-	const int status = run_command(cmd.str());
-
-	if (!options.keep_temporary_file)
+	catch (...)
 	{
-		std::remove(temp_source_file.c_str());
-	}
-
-	if (status != 0)
-	{
-		if (error_message != nullptr)
-		{
-			*error_message = "clang failed while generating LLVM IR from temporary source: " + temp_source_file +
-							 " (clang=" + clang_exe + ")";
-		}
+		report_stage_error("translator", "Unknown exception during LLVM IR translation.");
 		return false;
 	}
-
-	/** 步骤 9: 读取生成的 IR */
-	std::ifstream generated_ir(output_path.c_str(), std::ios::binary);
-	if (!generated_ir.is_open())
-	{
-		if (error_message != nullptr)
-		{
-			*error_message = "Generated LLVM IR file is missing: " + output_path;
-		}
-		return false;
-	}
-
-	std::ostringstream ir_buffer;
-	ir_buffer << generated_ir.rdbuf();
-	generated_ir.close();
-
-	/** 步骤 10: 规范化 IR - 移除主机特定信息 */
-	std::ofstream normalized_ir(output_path.c_str(), std::ios::binary | std::ios::trunc);
-	if (!normalized_ir.is_open())
-	{
-		if (error_message != nullptr)
-		{
-			*error_message = "Failed to normalize LLVM IR file: " + output_path;
-		}
-		return false;
-	}
-
-	normalized_ir << strip_host_specific_llvm_module_lines(ir_buffer.str());
-	normalized_ir.close();
 
 	return true;
 }

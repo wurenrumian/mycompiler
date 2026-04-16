@@ -15,7 +15,6 @@ int main()
 		std::string error;
 		if (!generator.generate_from_file(input_filename, output_filename, options, &error))
 		{
-			std::cerr << error << std::endl;
 			return 1;
 		}
 
