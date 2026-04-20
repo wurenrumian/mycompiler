@@ -45,3 +45,5 @@ AGENTS.md
 homework/
 **/*.zip
 public/
+pack_src.ps1
+docs/superpowers/
