@@ -12,9 +12,9 @@
 │   ├── README.md          # 文档索引
 │   ├── requirements/      # 作业要求与文法规范
 │   ├── reference/         # LLVM IR 参考资料
+│   ├── implementation/    # 各组件实现文档
 │   ├── issues/            # 问题记录
-│   ├── reports/           # 变更报告
-│   └── superpowers/       # 设计/计划流程文档
+│   └── reports/           # 变更报告
 ├── include/                # 头文件目录
 │   ├── common.h           # 通用工具（SourceLocation、char_util）
 │   ├── Stream.h           # 通用流模板类

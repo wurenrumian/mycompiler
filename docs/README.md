@@ -1,24 +1,24 @@
-# Documentation Index
+# 文档索引
 
-This directory contains project documentation organized by purpose.
+本文档目录包含按用途组织的项目文档。
 
-## Requirements
+## 需求（Requirements）
 
-- `requirements/hw3-llvm-ir-assignment.md`: Homework 3 requirement description and judge constraints.
-- `requirements/sysy-grammar-2026.md`: 2026 SysY grammar and semantic constraints.
+- `requirements/hw3-llvm-ir-assignment.md`：Homework 3 作业需求与评测约束
+- `requirements/sysy-grammar-2026.md`：2026 SysY 文法与语义约束
 
-## Reference
+## 参考（Reference）
 
-- `reference/llvm-ir-primer.md`: LLVM IR background and quick-start notes.
+- `reference/llvm-ir-primer.md`：LLVM IR 背景与快速入门笔记
 
-## Issues
+## 问题（Issues）
 
-- `issues/judge-runtime-note.md`: Judge runtime behavior notes and known output pitfall.
+- `issues/judge-runtime-note.md`：评测运行时行为记录与已知输出陷阱
 
-## Reports
+## 报告（Reports）
 
-- `CHANGELOG_REPORT.md`: Commit delta analysis and architecture-change report.
+- `CHANGELOG_REPORT.md`：提交差异分析与架构变更报告
 
-## Workflow
+## 实现（Implementation）
 
-- `superpowers/`: design specs and implementation plans used by the workflow.
+- `implementation/`：各组件实现详细文档
