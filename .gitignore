@@ -29,6 +29,7 @@ Makefile
 src/lex.yy.c
 src/cmm.tab.c
 src/cmm.tab.h
+lex.yy.h
 
 # 日志/临时文件
 *.log
@@ -41,7 +42,6 @@ compiler-example/
 opencode.jsonc
 AGENTS.md
 .roo/
-.vscode/
 homework/
 **/*.zip
 public/

@@ -42,7 +42,6 @@ add_executable(parser
     src/Ast.cpp
     src/ParserFrontend.cpp
     src/Semantic.cpp
-    src/IRBuilder.cpp
     src/Codegen.cpp
     ${BISON_SysYParser_OUTPUTS}
     src/Token.cpp
@@ -152,6 +151,6 @@ add_test(NAME test_parser_debug COMMAND test_parser_debug)
 # 运行所有测试的便捷目标
 add_custom_target(run_all_tests
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS test_stream test_token test_lexer test_parser test_codegen
+    DEPENDS test_stream test_token test_lexer test_parser test_codegen test_parser_debug
     COMMENT "Running all unit tests..."
 )

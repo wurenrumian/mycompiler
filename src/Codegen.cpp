@@ -26,9 +26,7 @@
 #include <cctype>
 #include <iostream>
 #include <fstream>
-#include <cstring>
 #include <sstream>
-#include <vector>
 
 #include "ParserFrontend.h"
 #include "Semantic.h"
@@ -525,11 +523,10 @@ bool LLVMIRGenerator::generate_from_file(const std::string &input_path,
 	}
 
 	/** 步骤 5: 语义分析 */
-	semantic::ProgramInfo program_info;
 	std::string semantic_error;
 	try
 	{
-		if (!semantic::analyze_program(*ast_root, &program_info, &semantic_error))
+		if (!semantic::analyze_program(*ast_root, &semantic_error))
 		{
 			report_stage_error("translator", semantic_error.empty() ? "Semantic analysis failed." : semantic_error);
 			return false;

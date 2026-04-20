@@ -170,7 +170,7 @@ namespace
 		return out;
 	}
 
-	bool is_decimal_integer(const std::string &text)
+bool is_decimal_integer(const std::string &text)
 	{
 		if (text.empty())
 		{
@@ -198,25 +198,6 @@ namespace
 	void remove_if_exists(const std::string &path)
 	{
 		std::remove(path.c_str());
-	}
-
-	bool set_opt_level_env(int level)
-	{
-		const std::string value = "MYCOMPILER_OPT_LEVEL=" + std::to_string(level);
-#ifdef _WIN32
-		return _putenv(value.c_str()) == 0;
-#else
-		return setenv("MYCOMPILER_OPT_LEVEL", std::to_string(level).c_str(), 1) == 0;
-#endif
-	}
-
-	bool clear_opt_level_env()
-	{
-#ifdef _WIN32
-		return _putenv("MYCOMPILER_OPT_LEVEL=") == 0;
-#else
-		return unsetenv("MYCOMPILER_OPT_LEVEL") == 0;
-#endif
 	}
 
 	void write_text(const std::string &path, const std::string &content)
@@ -395,51 +376,6 @@ namespace
 						  << normalized_actual << std::endl;
 				return false;
 			}
-		}
-
-		return true;
-	}
-
-	bool run_lli_with_file_redirect_and_expect(const std::string &input,
-											   const std::string &expected_output,
-											   int expected_exit_code)
-	{
-		remove_if_exists("judge_input.txt");
-		remove_if_exists("judge_stdout.log");
-		remove_if_exists("judge_exit.log");
-		write_text("judge_input.txt", input.empty() ? std::string() : input + "\n");
-
-#ifdef _WIN32
-		const std::string cmd =
-			"cmd /C \"lli linked_output.ll < judge_input.txt > judge_stdout.log 2>&1 & echo %ERRORLEVEL% > judge_exit.log\"";
-#else
-		const std::string cmd =
-			"sh -c 'lli linked_output.ll < judge_input.txt > judge_stdout.log 2>&1; printf \"%s\" $? > judge_exit.log'";
-#endif
-
-		if (!run_command(cmd))
-		{
-			std::cerr << "[FAIL] lli judge-style execution failed." << std::endl;
-			return false;
-		}
-
-		const std::string actual = normalize_output(read_all("judge_stdout.log"));
-		const std::string expected = normalize_output(expected_output);
-		if (actual != expected)
-		{
-			std::cerr << "[FAIL] judge-style lli output mismatch." << std::endl;
-			std::cerr << "Expected:\n"
-					  << expected << "\nActual:\n"
-					  << actual << std::endl;
-			return false;
-		}
-
-		const std::string exit_text = normalize_output(read_all("judge_exit.log"));
-		if (exit_text != std::to_string(expected_exit_code))
-		{
-			std::cerr << "[FAIL] judge-style lli exit code mismatch. expected "
-					  << expected_exit_code << ", actual " << exit_text << std::endl;
-			return false;
 		}
 
 		return true;
