@@ -1,6 +1,6 @@
-# CMM Compiler - 词法分析、语法分析与 LLVM IR 生成
+# CMM Compiler - SysY2022 到 RISC-V 汇编编译器
 
-本项目实现 CMM 语言的词法分析器（Homework 1）、语法分析器（Homework 2）和 LLVM IR 生成器（Homework 3），基于 SysY 文法标准。
+本项目实现 SysY2022 语言的词法分析、语法分析、语义检查与代码生成，输出 RISC-V64 汇编。
 
 ## 项目结构
 
@@ -57,20 +57,20 @@ cd build
 ./lexer ../testfile.txt
 ```
 
-### 运行 Homework 2/3（语法分析 + LLVM IR 生成）
+### 运行 Homework 2/3（语法分析 + RISC-V 汇编生成）
 
-在项目根目录准备 `testfile.txt`，然后执行：
+命令行与评测对齐：
 
 ```bash
 cd build
-./parser
+./compiler -S -o testcase.s ../public/functional_easy/00_main.sy
 ```
 
-输出文件：项目根目录 `output.ll`
+输出文件：`testcase.s`
 
 可选优化开关（为后续优化作业预留）：
 
-- `MYCOMPILER_OPT_LEVEL=0~3`：控制生成 IR 时传给 clang 的优化等级（默认 0）
+- `MYCOMPILER_OPT_LEVEL=0~3`：控制生成汇编时传给 clang 的优化等级（默认 0）
 - `MYCOMPILER_KEEP_TEMP=1`：保留中间 C 临时文件，便于调试
 - `LLVM_CLANG=<clang 可执行文件>`：指定 clang 路径
 
@@ -123,6 +123,24 @@ cd build
 ```bash
 cd build
 ctest --output-on-failure    # 运行所有测试
+```
+
+## 提测前自检脚本
+
+公开样例批量编译检查（只检查 `compiler -S -o` 是否成功生成非空 `.s`）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tests/test_public.ps1
+```
+
+```bash
+bash tests/test_public.sh
+```
+
+浮点路径快速检查（确认关键探针不走 `fadd.d/fcvt.d.s` 双精度路径）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tests/check_float_probe.ps1
 ```
 
 ## 注意事项

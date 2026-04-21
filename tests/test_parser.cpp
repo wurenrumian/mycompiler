@@ -21,6 +21,7 @@
  */
 
 #include <cassert>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -51,17 +52,25 @@ void delete_test_file(const std::string &filename)
 	std::remove(filename.c_str());
 }
 
+void require_true(bool condition, const std::string &message)
+{
+	if (!condition)
+	{
+		std::cerr << "[FAIL] " << message << std::endl;
+		std::abort();
+	}
+}
+
 // 执行 parser 测试的辅助宏
 #define PARSE_TEST(filename, content)    \
 	create_test_file(filename, content); \
 	Lexer lexer(filename);               \
 	set_lexer(&lexer);                   \
-	int result = yyparse();              \
-	assert(result == 0);                 \
-	assert(ast::peek_ast_root() != nullptr); \
+	require_true(yyparse() == 0, "yyparse failed: " filename); \
+	require_true(ast::peek_ast_root() != nullptr, "peek_ast_root is null: " filename); \
 	std::unique_ptr<ast::CompUnit> parsed_ast = ast::take_ast_root(); \
-	assert(parsed_ast.get() != nullptr); \
-	assert(!parsed_ast->items.empty()); \
+	require_true(parsed_ast.get() != nullptr, "take_ast_root returned null: " filename); \
+	require_true(!parsed_ast->items.empty(), "parsed ast items empty: " filename); \
 	delete_test_file(filename)
 
 // ============================================================================
@@ -1020,9 +1029,8 @@ void test_parser_output_format()
 	Lexer lexer1("test_parser_output1.txt");
 	set_lexer(&lexer1);
 	output_file.open("output1.txt");
-	int result1 = yyparse();
+	require_true(yyparse() == 0, "yyparse failed for test_parser_output1.txt");
 	output_file.close();
-	assert(result1 == 0);
 
 	// 验证 output1.txt 中是否包含 <RelExp>
 	std::ifstream if1("output1.txt");
@@ -1034,7 +1042,7 @@ void test_parser_output_format()
 			has_relexp = true;
 	}
 	if1.close();
-	assert(!has_relexp);
+	require_true(!has_relexp, "unexpected <RelExp> found in arithmetic expression output");
 	std::cout << "[PASS] test_parser_output_format_arithmetic (No RelExp in Exp)" << std::endl;
 
 	// 测试 2: 条件表达式，应包含 RelExp 等标签
@@ -1043,9 +1051,8 @@ void test_parser_output_format()
 	Lexer lexer2("test_parser_output2.txt");
 	set_lexer(&lexer2);
 	output_file.open("output2.txt");
-	int result2 = yyparse();
+	require_true(yyparse() == 0, "yyparse failed for test_parser_output2.txt");
 	output_file.close();
-	assert(result2 == 0);
 
 	// 验证 output2.txt 中是否包含 <RelExp>
 	std::ifstream if2("output2.txt");
@@ -1056,7 +1063,7 @@ void test_parser_output_format()
 			has_relexp = true;
 	}
 	if2.close();
-	assert(has_relexp);
+	require_true(has_relexp, "expected <RelExp> not found in condition output");
 	std::cout << "[PASS] test_parser_output_format_condition (Has RelExp in Cond)" << std::endl;
 
 	delete_test_file("test_parser_output1.txt");
@@ -1070,9 +1077,8 @@ void test_parser_output_format()
 	Lexer lexer3("test_parser_output3.txt");
 	set_lexer(&lexer3);
 	output_file.open("output3.txt");
-	int result3 = yyparse();
+	require_true(yyparse() == 0, "yyparse failed for test_parser_output3.txt");
 	output_file.close();
-	assert(result3 == 0);
 
 	std::ifstream if3("output3.txt");
 	bool has_exp = false;
@@ -1082,7 +1088,7 @@ void test_parser_output_format()
 			has_exp = true;
 	}
 	if3.close();
-	assert(has_exp);
+	require_true(has_exp, "expected <Exp> not found in getint assignment output");
 	std::cout << "[PASS] test_parser_output_format_getint (Has Exp in getint assignment)" << std::endl;
 	delete_test_file("test_parser_output3.txt");
 	delete_test_file("output3.txt");
@@ -1093,9 +1099,8 @@ void test_parser_output_format()
 	Lexer lexer4("test_parser_output4.txt");
 	set_lexer(&lexer4);
 	output_file.open("output4.txt");
-	int result4 = yyparse();
+	require_true(yyparse() == 0, "yyparse failed for test_parser_output4.txt");
 	output_file.close();
-	assert(result4 == 0);
 
 	std::ifstream if4("output4.txt");
 	bool has_exp_in_param = false;
@@ -1105,7 +1110,7 @@ void test_parser_output_format()
 			has_exp_in_param = true;
 	}
 	if4.close();
-	assert(has_exp_in_param);
+	require_true(has_exp_in_param, "expected <Exp> not found in function parameter dimension output");
 	std::cout << "[PASS] test_parser_output_format_func_param_dim (Has Exp in FuncFParam dim)" << std::endl;
 	delete_test_file("test_parser_output4.txt");
 	delete_test_file("output4.txt");
@@ -1122,14 +1127,39 @@ void test_parser_frontend_api()
 
 	std::unique_ptr<ast::CompUnit> root;
 	std::string error;
-	const bool ok = parse_file_to_ast(filename, &root, &error);
-	assert(ok);
+	require_true(parse_file_to_ast(filename, &root, &error), "parse_file_to_ast returned false");
 	assert(error.empty());
 	assert(root.get() != nullptr);
 	assert(root->items.size() == 2);
 
 	delete_test_file(filename);
 	std::cout << "[PASS] test_parser_frontend_api" << std::endl;
+}
+
+void test_parser_float_decl_and_return()
+{
+	std::string content = "float addf(float a, float b) {\n"
+						  "    float c = a + b;\n"
+						  "    return c;\n"
+						  "}\n"
+						  "int main() {\n"
+						  "    float x = 1.5;\n"
+						  "    float y = 2.25;\n"
+						  "    return 0;\n"
+						  "}";
+	PARSE_TEST("test_parser_float_01.txt", content);
+	std::cout << "[PASS] test_parser_float_decl_and_return" << std::endl;
+}
+
+void test_parser_float_const_init()
+{
+	std::string content = "const float pi = 3.14159;\n"
+						  "float g = 9.8;\n"
+						  "int main() {\n"
+						  "    return 0;\n"
+						  "}";
+	PARSE_TEST("test_parser_float_02.txt", content);
+	std::cout << "[PASS] test_parser_float_const_init" << std::endl;
 }
 
 // ============================================================================
@@ -1145,6 +1175,8 @@ int main()
 		std::cout << "test_parser_output_format" << std::endl;
 		test_parser_output_format();
 		test_parser_frontend_api();
+		test_parser_float_decl_and_return();
+		test_parser_float_const_init();
 
 		std::cout << "basic program structure" << std::endl;
 

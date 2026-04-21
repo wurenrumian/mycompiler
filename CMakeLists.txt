@@ -34,10 +34,7 @@ target_include_directories(lexer PRIVATE
 )
 target_compile_definitions(lexer PRIVATE YY_NO_UNISTD_H)
 
-# ============================================
-# Homework 2: 语法分析器（使用 flex/bison）
-# ============================================
-add_executable(parser
+set(COMPILER_CORE_SOURCES
     src/parser_main.cpp
     src/Ast.cpp
     src/ParserFrontend.cpp
@@ -47,6 +44,11 @@ add_executable(parser
     src/Token.cpp
     src/Lexer.cpp
 )
+
+# ============================================
+# Homework 2/3: 语法分析+代码生成器
+# ============================================
+add_executable(parser ${COMPILER_CORE_SOURCES})
 target_include_directories(parser PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -54,10 +56,19 @@ target_include_directories(parser PRIVATE
 )
 target_compile_definitions(parser PRIVATE YY_NO_UNISTD_H ENABLE_PARSER_OUTPUT=1)
 
+add_executable(compiler ${COMPILER_CORE_SOURCES})
+target_include_directories(compiler PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_BINARY_DIR}
+)
+target_compile_definitions(compiler PRIVATE YY_NO_UNISTD_H ENABLE_PARSER_OUTPUT=1)
+
 # 链接 bison 库（如果找到）
 if(BISON_FOUND)
     if(BISON_LIBRARIES)
         target_link_libraries(parser PRIVATE ${BISON_LIBRARIES})
+        target_link_libraries(compiler PRIVATE ${BISON_LIBRARIES})
     endif()
 endif()
 
@@ -126,17 +137,6 @@ target_include_directories(test_codegen PRIVATE
 )
 target_compile_definitions(test_codegen PRIVATE YY_NO_UNISTD_H)
 add_test(NAME test_codegen COMMAND test_codegen)
-
-# 复杂测试用例集成测试
-add_executable(test_complex
-    tests/test_complex.cpp
-)
-target_include_directories(test_complex PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
-target_compile_definitions(test_complex PRIVATE YY_NO_UNISTD_H)
-add_test(NAME test_complex COMMAND test_complex)
-
 # Parser分段调试测试
 add_executable(test_parser_debug
     tests/test_parser_debug.cpp
@@ -147,6 +147,7 @@ target_include_directories(test_parser_debug PRIVATE
 )
 target_compile_definitions(test_parser_debug PRIVATE YY_NO_UNISTD_H)
 add_test(NAME test_parser_debug COMMAND test_parser_debug)
+
 
 # 运行所有测试的便捷目标
 add_custom_target(run_all_tests

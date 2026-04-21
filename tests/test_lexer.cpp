@@ -214,6 +214,50 @@ void test_lexer_long_identifier()
 	std::cout << "[PASS] test_lexer_long_identifier" << std::endl;
 }
 
+void test_lexer_float_tokens()
+{
+	create_test_file("test_lexer_float.txt", "float a = 3.14; float b = 1e-3; float c = .5;");
+
+	Lexer lexer("test_lexer_float.txt");
+	Token token;
+
+	token = lexer.next_token();
+	assert(token.type == TokenType::FLOATTK);
+	token = lexer.next_token();
+	assert(token.type == TokenType::IDENFR && token.lexeme == "a");
+	token = lexer.next_token();
+	assert(token.type == TokenType::ASSIGN);
+	token = lexer.next_token();
+	assert(token.type == TokenType::FLOATCON && token.lexeme == "3.14");
+	token = lexer.next_token();
+	assert(token.type == TokenType::SEMICN);
+
+	token = lexer.next_token();
+	assert(token.type == TokenType::FLOATTK);
+	token = lexer.next_token();
+	assert(token.type == TokenType::IDENFR && token.lexeme == "b");
+	token = lexer.next_token();
+	assert(token.type == TokenType::ASSIGN);
+	token = lexer.next_token();
+	assert(token.type == TokenType::FLOATCON && token.lexeme == "1e-3");
+	token = lexer.next_token();
+	assert(token.type == TokenType::SEMICN);
+
+	token = lexer.next_token();
+	assert(token.type == TokenType::FLOATTK);
+	token = lexer.next_token();
+	assert(token.type == TokenType::IDENFR && token.lexeme == "c");
+	token = lexer.next_token();
+	assert(token.type == TokenType::ASSIGN);
+	token = lexer.next_token();
+	assert(token.type == TokenType::FLOATCON && token.lexeme == ".5");
+	token = lexer.next_token();
+	assert(token.type == TokenType::SEMICN);
+
+	delete_test_file("test_lexer_float.txt");
+	std::cout << "[PASS] test_lexer_float_tokens" << std::endl;
+}
+
 int main()
 {
 	std::cout << "Running Lexer tests..." << std::endl;
@@ -223,6 +267,7 @@ int main()
 	test_lexer_strings();
 	test_lexer_whitespace();
 	test_lexer_long_identifier();
+	test_lexer_float_tokens();
 
 	std::cout << "All Lexer tests passed!" << std::endl;
 	return 0;

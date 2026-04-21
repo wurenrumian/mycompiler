@@ -35,10 +35,10 @@ bool enable_parser_output = true;
 
 %}
 
-%token CONSTTK INTTK VOIDTK IFTK ELSETK WHILETK BREAKTK CONTINUETK RETURNTK MAINTK GETINTTK PRINTFTK
+%token CONSTTK INTTK FLOATTK VOIDTK IFTK ELSETK WHILETK BREAKTK CONTINUETK RETURNTK MAINTK GETINTTK PRINTFTK
 %token GEQ EQL AND OR LEQ LSS GRE PLUS MINU MULT DIV MOD ASSIGN NOT NEQ
 %token SEMICN LPARENT RPARENT LBRACK RBRACK LBRACE RBRACE COMMA
-%token INTCON IDENFR STRCON
+%token INTCON FLOATCON IDENFR STRCON
 
 %nonassoc LOWER_THAN_ELSE
 %nonassoc ELSETK
@@ -56,6 +56,10 @@ Unit : Decl { ast::push_ast_item(ast::ItemKind::Decl, std::string()); }
      | MainFuncDef { ast::push_ast_item(ast::ItemKind::MainFuncDef, "main"); }
      ;
 
+Ident : IDENFR
+      | MAINTK
+      ;
+
 Decl : ConstDecl
      | VarDecl
      ;
@@ -68,9 +72,10 @@ ConstDefList : ConstDef
              ;
 
 BType : INTTK
+      | FLOATTK
       ;
 
-ConstDef : IDENFR ConstExpDims ASSIGN ConstInitVal { PRINT_TAG("ConstDef"); }
+ConstDef : Ident ConstExpDims ASSIGN ConstInitVal { PRINT_TAG("ConstDef"); }
          ;
 
 ConstExpDims : /* empty */
@@ -93,8 +98,8 @@ VarDefList : VarDef
            | VarDefList COMMA VarDef
            ;
 
-VarDef : IDENFR ConstExpDims { PRINT_TAG("VarDef"); }
-       | IDENFR ConstExpDims ASSIGN InitVal { PRINT_TAG("VarDef"); }
+VarDef : Ident ConstExpDims { PRINT_TAG("VarDef"); }
+       | Ident ConstExpDims ASSIGN InitVal { PRINT_TAG("VarDef"); }
        ;
 
 InitVal : Exp { PRINT_TAG("InitVal"); }
@@ -114,6 +119,7 @@ MainFuncDef : FuncType MAINTK LPARENT RPARENT Block { PRINT_TAG("FuncDef"); }
 
 FuncType : VOIDTK { PRINT_TAG("FuncType"); }
          | INTTK { PRINT_TAG("FuncType"); }
+         | FLOATTK { PRINT_TAG("FuncType"); }
          ;
 
 FuncFParamsWrapper : /* empty */
@@ -127,8 +133,8 @@ FuncFParamList : FuncFParam
                | FuncFParamList COMMA FuncFParam
                ;
 
-FuncFParam : BType IDENFR { PRINT_TAG("FuncFParam"); }
-           | BType IDENFR LBRACK RBRACK ExpDims { PRINT_TAG("FuncFParam"); }
+FuncFParam : BType Ident { PRINT_TAG("FuncFParam"); }
+           | BType Ident LBRACK RBRACK ExpDims { PRINT_TAG("FuncFParam"); }
            ;
 
 Block : LBRACE BlockItemList RBRACE { PRINT_TAG("Block"); }
@@ -170,7 +176,7 @@ Exp : AddExp { PRINT_TAG("Exp"); }
 Cond : LOrExp { PRINT_TAG("Cond"); }
      ;
 
-LVal : IDENFR ExpDims { PRINT_TAG("LVal"); }
+LVal : Ident ExpDims { PRINT_TAG("LVal"); }
      ;
 
 ExpDims : /* empty */
@@ -183,10 +189,11 @@ PrimaryExp : LPARENT Exp RPARENT { PRINT_TAG("PrimaryExp"); }
            ;
 
 Number : INTCON { PRINT_TAG("Number"); }
+       | FLOATCON { PRINT_TAG("Number"); }
        ;
 
 UnaryExp : PrimaryExp { PRINT_TAG("UnaryExp"); }
-         | IDENFR LPARENT FuncRParamsWrapper RPARENT { PRINT_TAG("UnaryExp"); }
+         | Ident LPARENT FuncRParamsWrapper RPARENT { PRINT_TAG("UnaryExp"); }
          | GETINTTK LPARENT RPARENT { PRINT_TAG("UnaryExp"); }
          | UnaryOp UnaryExp { PRINT_TAG("UnaryExp"); }
          ;
@@ -257,6 +264,7 @@ int yylex() {
     switch (t.type) {
         case TokenType::CONSTTK: return CONSTTK;
         case TokenType::INTTK: return INTTK;
+        case TokenType::FLOATTK: return FLOATTK;
         case TokenType::VOIDTK: return VOIDTK;
         case TokenType::IFTK: return IFTK;
         case TokenType::ELSETK: return ELSETK;
@@ -291,6 +299,7 @@ int yylex() {
         case TokenType::RBRACE: return RBRACE;
         case TokenType::COMMA: return COMMA;
         case TokenType::INTCON: return INTCON;
+        case TokenType::FLOATCON: return FLOATCON;
         case TokenType::IDENFR: return IDENFR;
         case TokenType::STRCON: return STRCON;
         case TokenType::END_OF_FILE: return 0;

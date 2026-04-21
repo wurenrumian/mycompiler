@@ -18,6 +18,7 @@ enum class TokenType
 	// 保留字
 	CONSTTK,	// const
 	INTTK,		// int
+	FLOATTK,	// float
 	VOIDTK,		// void
 	IFTK,		// if
 	ELSETK,		// else
@@ -58,6 +59,7 @@ enum class TokenType
 
 	// 其他
 	INTCON, // 整数常量
+	FLOATCON, // 浮点常量
 	IDENFR, // 标识符
 	STRCON, // 格式字符串
 

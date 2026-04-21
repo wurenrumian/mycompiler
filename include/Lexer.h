@@ -29,8 +29,8 @@ private:
 	// 读取标识符或保留字
 	Token read_identifier(SourceLocation loc);
 
-	// 读取整数常量（十进制）
-	Token read_integer(SourceLocation loc);
+	// 读取数字常量（整数或浮点）
+	Token read_number(SourceLocation loc);
 
 	// 读取字符串常量（双引号包裹）
 	Token read_string(SourceLocation loc);

@@ -8,6 +8,7 @@ static const std::unordered_map<std::string, TokenType> keyword_map = {
 	// 关键字
 	{"const", TokenType::CONSTTK},
 	{"int", TokenType::INTTK},
+	{"float", TokenType::FLOATTK},
 	{"void", TokenType::VOIDTK},
 	{"if", TokenType::IFTK},
 	{"else", TokenType::ELSETK},
@@ -17,7 +18,8 @@ static const std::unordered_map<std::string, TokenType> keyword_map = {
 	{"return", TokenType::RETURNTK},
 	{"main", TokenType::MAINTK},
 	{"getint", TokenType::GETINTTK},
-	{"printf", TokenType::PRINTFTK}};
+	{"printf", TokenType::PRINTFTK},
+	{"putf", TokenType::PRINTFTK}};
 
 // ============================================================================
 // Token 类型字符串映射（用于输出）
@@ -26,6 +28,7 @@ static const std::unordered_map<TokenType, std::string> token_type_strings = {
 	// 保留字
 	{TokenType::CONSTTK, "CONSTTK"},
 	{TokenType::INTTK, "INTTK"},
+	{TokenType::FLOATTK, "FLOATTK"},
 	{TokenType::VOIDTK, "VOIDTK"},
 	{TokenType::IFTK, "IFTK"},
 	{TokenType::ELSETK, "ELSETK"},
@@ -66,6 +69,7 @@ static const std::unordered_map<TokenType, std::string> token_type_strings = {
 
 	// 其他
 	{TokenType::INTCON, "INTCON"},
+	{TokenType::FLOATCON, "FLOATCON"},
 	{TokenType::IDENFR, "IDENFR"},
 	{TokenType::STRCON, "STRCON"},
 

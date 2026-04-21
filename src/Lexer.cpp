@@ -88,14 +88,14 @@ Token Lexer::read_identifier(SourceLocation loc)
 	}
 }
 
-Token Lexer::read_integer(SourceLocation loc)
+Token Lexer::read_number(SourceLocation loc)
 {
 	/**
-	 * @brief 读取整数常量
+	 * @brief 读取数字常量（整数或浮点）
 	 *
-	 * 格式：
-	 * - 十六进制：0x[0-9a-fA-F]+ 或 0X[0-9a-fA-F]+
-	 * - 十进制：[0-9]+
+	 * 支持：
+	 * - 整数：十进制、八进制风格、十六进制（0x...）
+	 * - 浮点：3.14, .5, 1., 1e-3, 2.5E+2
 	 */
 	std::string lexeme;
 	char c;
@@ -103,43 +103,92 @@ Token Lexer::read_integer(SourceLocation loc)
 	stream->next(c);
 	lexeme.push_back(c);
 
-	if (c == '0')
+	// .5 形式
+	if (c == '.')
 	{
-		char next = stream->peek(0);
-		if (next == 'x' || next == 'X')
+		while (char_util::is_digit(stream->peek(0)))
 		{
-			stream->next(next);
-			lexeme.push_back(next);
-			while (true)
+			char d;
+			stream->next(d);
+			lexeme.push_back(d);
+		}
+	}
+	else
+	{
+		// 整数部分
+		while (char_util::is_digit(stream->peek(0)))
+		{
+			char d;
+			stream->next(d);
+			lexeme.push_back(d);
+		}
+
+		// 十六进制整数（仅 0x/0X）
+		if (lexeme == "0" && (stream->peek(0) == 'x' || stream->peek(0) == 'X'))
+		{
+			char xchar;
+			stream->next(xchar);
+			lexeme.push_back(xchar);
+			while (char_util::is_hex_digit(stream->peek(0)))
 			{
-				char hex_c = stream->peek(0);
-				if (char_util::is_hex_digit(hex_c))
-				{
-					lexeme.push_back(hex_c);
-					stream->next(hex_c);
-				}
-				else
-				{
-					break;
-				}
+				char hex_char;
+				stream->next(hex_char);
+				lexeme.push_back(hex_char);
 			}
 			return Token(TokenType::INTCON, lexeme, loc);
 		}
+
+		// 小数部分
+		if (stream->peek(0) == '.')
+		{
+			char dot_char;
+			stream->next(dot_char);
+			lexeme.push_back(dot_char);
+			while (char_util::is_digit(stream->peek(0)))
+			{
+				char frac_char;
+				stream->next(frac_char);
+				lexeme.push_back(frac_char);
+			}
+		}
 	}
 
-	// 十进制
-	while (true)
+	// 指数部分
+	if (stream->peek(0) == 'e' || stream->peek(0) == 'E')
 	{
-		char next_c = stream->peek(0);
-		if (char_util::is_digit(next_c))
+		char exponent_marker = stream->peek(0);
+		char sign_char = stream->peek(1);
+		size_t digit_offset = 1;
+		if (sign_char == '+' || sign_char == '-')
 		{
-			lexeme.push_back(next_c);
-			stream->next(next_c);
+			digit_offset = 2;
 		}
-		else
+		if (char_util::is_digit(stream->peek(digit_offset)))
 		{
-			break;
+			char e_char;
+			stream->next(e_char);
+			lexeme.push_back(e_char);
+			if (sign_char == '+' || sign_char == '-')
+			{
+				char s_char;
+				stream->next(s_char);
+				lexeme.push_back(s_char);
+			}
+			while (char_util::is_digit(stream->peek(0)))
+			{
+				char exp_digit;
+				stream->next(exp_digit);
+				lexeme.push_back(exp_digit);
+			}
+			(void)exponent_marker;
 		}
+	}
+
+	if (lexeme.find('.') != std::string::npos ||
+		lexeme.find('e') != std::string::npos ||
+		lexeme.find('E') != std::string::npos)
+	{
+		return Token(TokenType::FLOATCON, lexeme, loc);
 	}
 
 	return Token(TokenType::INTCON, lexeme, loc);
@@ -341,11 +390,18 @@ Token Lexer::next_token_impl()
 			return read_identifier(loc);
 		}
 
-		// 数字（整数常量）
+		// 数字（整数/浮点）
 		if (char_util::is_digit(c))
 		{
 			stream->unget();
-			return read_integer(loc);
+			return read_number(loc);
+		}
+
+		// 以小数点开头的浮点数（.5）
+		if (c == '.' && char_util::is_digit(stream->peek(0)))
+		{
+			stream->unget();
+			return read_number(loc);
 		}
 
 		// 字符串常量（以双引号开头）

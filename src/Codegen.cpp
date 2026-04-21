@@ -43,6 +43,39 @@ namespace
 		return std::system(command.c_str());
 	}
 
+	std::string quote_arg(const std::string &value)
+	{
+		bool needs_quote = false;
+		for (size_t index = 0; index < value.size(); ++index)
+		{
+			const char ch = value[index];
+			if (ch == ' ' || ch == '\t' || ch == '"')
+			{
+				needs_quote = true;
+				break;
+			}
+		}
+		if (!needs_quote)
+		{
+			return value;
+		}
+
+		std::string quoted = "\"";
+		for (size_t index = 0; index < value.size(); ++index)
+		{
+			if (value[index] == '"')
+			{
+				quoted += "\\\"";
+			}
+			else
+			{
+				quoted += value[index];
+			}
+		}
+		quoted += "\"";
+		return quoted;
+	}
+
 	/**
 	 * @brief 检查命令是否存在
 	 * @param exe 可执行文件名或完整路径
@@ -208,52 +241,22 @@ namespace
 	std::string build_driver_prelude()
 	{
 		std::ostringstream os;
-		os << "int vprintf(const char *a, __builtin_va_list args);\n";
 		os << "int getint(void);\n";
 		os << "int getch(void);\n";
+		os << "float getfloat(void);\n";
 		os << "int getarray(int a[]);\n";
+		os << "int getfarray(float a[]);\n";
 		os << "void putint(int a);\n";
 		os << "void putch(int a);\n";
+		os << "void putfloat(float a);\n";
 		os << "void putarray(int n, int a[]);\n";
+		os << "void putfarray(int n, float a[]);\n";
 		os << "void putf(char a[], ...);\n";
 		os << "void _sysy_starttime(int lineno);\n";
 		os << "void _sysy_stoptime(int lineno);\n";
-		os << "static int __my_has_output = 0;\n";
-		os << "static int __my_last_is_newline = 1;\n";
-		os << "static void __my_putint(int a) { putint(a); __my_has_output = 1; __my_last_is_newline = 0; }\n";
-		os << "static void __my_putch(int a) { putch(a); __my_has_output = 1; __my_last_is_newline = (a == '\\n'); }\n";
-		os << "static void __my_putarray(int n, int a[]) { putarray(n, a); __my_has_output = 1; __my_last_is_newline = 1; }\n";
-		os << "static void __my_putf(char a[], ...) { __builtin_va_list args; __builtin_va_start(args, a); vprintf(a, args); __builtin_va_end(args); __my_has_output = 1; int i = 0; while (a[i] != '\\0') ++i; __my_last_is_newline = (i > 0 && a[i - 1] == '\\n'); }\n";
 		os << "#define starttime() _sysy_starttime(__LINE__)\n";
 		os << "#define stoptime() _sysy_stoptime(__LINE__)\n";
-		os << "#define putint __my_putint\n";
-		os << "#define putch __my_putch\n";
-		os << "#define putarray __my_putarray\n";
-		os << "#define putf __my_putf\n";
-		os << "#define printf __my_putf\n";
-		os << "#define main _mycompiler_main\n\n";
-		return os.str();
-	}
-
-	/**
-	 * @brief 生成 main 函数包装器
-	 *
-	 * 在用户代码之后添加 main 包装器，
-	 * 该包装器调用用户的 main 函数（原 _mycompiler_main）
-	 * 并将返回值打印到标准输出。
-	 */
-	std::string build_main_wrapper()
-	{
-		std::ostringstream os;
-		os << "\n#undef main\n";
-		os << "int main() {\n";
-		os << "    int ret = _mycompiler_main();\n";
-		os << "    if (__my_has_output && !__my_last_is_newline) putch('\\n');\n";
-		os << "    int ret_mod = ((ret % 256) + 256) % 256;\n";
-		os << "    putint(ret_mod);\n";
-		os << "    putch('\\n');\n";
-		os << "    return ret;\n";
-		os << "}\n";
+		os << '\n';
 		return os.str();
 	}
 
@@ -292,16 +295,32 @@ namespace
 	bool is_builtin_decl_line(const std::string &line)
 	{
 		static const char *names[] = {
-			"getint", "getch", "getarray", "putint", "putch", "putarray", "putf",
+			"getint", "getch", "getfloat", "getarray", "getfarray",
+			"putint", "putch", "putfloat", "putarray", "putfarray", "putf",
 			"starttime", "stoptime", "_sysy_starttime", "_sysy_stoptime"};
 
 		const std::string t = trim_copy(line);
-		if (t.empty() || t[t.size() - 1] != ';')
+		if (t.empty())
 		{
 			return false;
 		}
 
-		if (!(t.find("int ") == 0 || t.find("void ") == 0 || t.find("const int ") == 0))
+		const char *prefixes[] = {
+			"int", "void", "float",
+			"const int", "const float",
+			"extern int", "extern void", "extern float",
+			"extern const int", "extern const float"};
+		bool has_valid_prefix = false;
+		for (size_t i = 0; i < sizeof(prefixes) / sizeof(prefixes[0]); ++i)
+		{
+			const std::string prefix(prefixes[i]);
+			if (t == prefix || t.find(prefix + " ") == 0)
+			{
+				has_valid_prefix = true;
+				break;
+			}
+		}
+		if (!has_valid_prefix)
 		{
 			return false;
 		}
@@ -313,7 +332,11 @@ namespace
 			if (pos != std::string::npos)
 			{
 				const std::string prefix = trim_copy(t.substr(0, pos));
-				if (prefix == "int" || prefix == "void" || prefix == "const int")
+				if (prefix == "int" ||
+					prefix == "void" ||
+					prefix == "float" ||
+					prefix == "const int" ||
+					prefix == "const float")
 				{
 					return true;
 				}
@@ -334,44 +357,214 @@ namespace
 	 */
 	std::string strip_builtin_declarations(const std::string &source)
 	{
-		std::istringstream in(source);
 		std::ostringstream out;
-		std::string line;
-
-		while (std::getline(in, line))
+		std::string statement_buffer;
+		for (size_t index = 0; index < source.size(); ++index)
 		{
-			if (!is_builtin_decl_line(line))
+			const char ch = source[index];
+			statement_buffer.push_back(ch);
+			if (ch != ';')
 			{
-				out << line << '\n';
+				continue;
+			}
+
+			std::string statement = trim_copy(statement_buffer);
+			if (!statement.empty() && statement[statement.size() - 1] == ';')
+			{
+				statement.erase(statement.size() - 1);
+				statement = trim_copy(statement);
+			}
+
+			if (!is_builtin_decl_line(statement))
+			{
+				out << statement_buffer;
+			}
+			statement_buffer.clear();
+		}
+
+		if (!statement_buffer.empty())
+		{
+			out << statement_buffer;
+		}
+
+		return out.str();
+	}
+
+	bool is_identifier_char(char ch)
+	{
+		return std::isalnum(static_cast<unsigned char>(ch)) != 0 || ch == '_';
+	}
+
+	bool is_hex_digit(char ch)
+	{
+		return std::isxdigit(static_cast<unsigned char>(ch)) != 0;
+	}
+
+	size_t consume_digits(const std::string &source, size_t index)
+	{
+		while (index < source.size() && std::isdigit(static_cast<unsigned char>(source[index])) != 0)
+		{
+			++index;
+		}
+		return index;
+	}
+
+	size_t consume_hex_digits(const std::string &source, size_t index)
+	{
+		while (index < source.size() && is_hex_digit(source[index]))
+		{
+			++index;
+		}
+		return index;
+	}
+
+	std::string suffix_float_literals(const std::string &source)
+	{
+		std::ostringstream out;
+		for (size_t index = 0; index < source.size();)
+		{
+			const char ch = source[index];
+			if (ch == '"' )
+			{
+				out << ch;
+				++index;
+				while (index < source.size())
+				{
+					out << source[index];
+					if (source[index] == '\\' && index + 1 < source.size())
+					{
+						++index;
+						out << source[index];
+					}
+					else if (source[index] == '"')
+					{
+						++index;
+						break;
+					}
+					++index;
+				}
+				continue;
+			}
+			if (ch == '/' && index + 1 < source.size() && source[index + 1] == '/')
+			{
+				while (index < source.size())
+				{
+					out << source[index];
+					if (source[index] == '\n')
+					{
+						++index;
+						break;
+					}
+					++index;
+				}
+				continue;
+			}
+			if (ch == '/' && index + 1 < source.size() && source[index + 1] == '*')
+			{
+				out << source[index++] << source[index++];
+				while (index < source.size())
+				{
+					out << source[index];
+					if (source[index] == '*' && index + 1 < source.size() && source[index + 1] == '/')
+					{
+						++index;
+						out << source[index++];
+						break;
+					}
+					++index;
+				}
+				continue;
+			}
+
+			if (std::isdigit(static_cast<unsigned char>(ch)) == 0 &&
+				!(ch == '.' && index + 1 < source.size() &&
+				  std::isdigit(static_cast<unsigned char>(source[index + 1])) != 0))
+			{
+				out << ch;
+				++index;
+				continue;
+			}
+
+			const size_t start = index;
+			bool is_float_literal = false;
+			if (source[index] == '.')
+			{
+				++index;
+				index = consume_digits(source, index);
+				is_float_literal = true;
+				if (index < source.size() && (source[index] == 'e' || source[index] == 'E'))
+				{
+					++index;
+					if (index < source.size() && (source[index] == '+' || source[index] == '-'))
+					{
+						++index;
+					}
+					index = consume_digits(source, index);
+				}
+			}
+			else if (index + 1 < source.size() && source[index] == '0' &&
+					 (source[index + 1] == 'x' || source[index + 1] == 'X'))
+			{
+				index += 2;
+				index = consume_hex_digits(source, index);
+				if (index < source.size() && source[index] == '.')
+				{
+					is_float_literal = true;
+					++index;
+					index = consume_hex_digits(source, index);
+				}
+				if (index < source.size() && (source[index] == 'p' || source[index] == 'P'))
+				{
+					is_float_literal = true;
+					++index;
+					if (index < source.size() && (source[index] == '+' || source[index] == '-'))
+					{
+						++index;
+					}
+					index = consume_digits(source, index);
+				}
+			}
+			else
+			{
+				index = consume_digits(source, index);
+				if (index < source.size() && source[index] == '.')
+				{
+					is_float_literal = true;
+					++index;
+					index = consume_digits(source, index);
+				}
+				if (index < source.size() && (source[index] == 'e' || source[index] == 'E'))
+				{
+					is_float_literal = true;
+					++index;
+					if (index < source.size() && (source[index] == '+' || source[index] == '-'))
+					{
+						++index;
+					}
+					index = consume_digits(source, index);
+				}
+			}
+
+			out << source.substr(start, index - start);
+			if (is_float_literal && (index >= source.size() || !is_identifier_char(source[index])))
+			{
+				out << 'f';
 			}
 		}
 
 		return out.str();
 	}
 
-	/**
-	 * @brief 移除 LLVM IR 中的主机特定行
-	 *
-	 * 移除的内容：
-	 * - target datalayout: 目标数据布局 (包含主机特定信息)
-	 * - target triple: 目标三元组 (包含主机特定信息)
-	 *
-	 * 这些信息会导致生成的 IR 不可移植，
-	 * 移除后 IR 可以在不同的 LLVM 环境下运行。
-	 *
-	 * @param ir 原始 LLVM IR 文本
-	 * @return 清理后的 LLVM IR 文本
-	 */
-	std::string strip_host_specific_llvm_module_lines(const std::string &ir)
+	std::string strip_incompatible_asm_directives(const std::string &assembly_text)
 	{
-		std::istringstream in(ir);
+		std::istringstream in(assembly_text);
 		std::ostringstream out;
 		std::string line;
 
 		while (std::getline(in, line))
 		{
 			const std::string trimmed = trim_copy(line);
-			if (trimmed.find("target datalayout = ") == 0 || trimmed.find("target triple = ") == 0)
+			if (trimmed == ".addrsig" || trimmed.find(".addrsig_sym") == 0)
 			{
 				continue;
 			}
@@ -380,6 +573,7 @@ namespace
 
 		return out.str();
 	}
+
 } // namespace
 
 /**
@@ -423,7 +617,7 @@ CodegenOptions LLVMIRGenerator::from_environment()
 }
 
 /**
- * @brief 将源文件编译为 LLVM IR
+ * @brief 将源文件编译为 RISC-V 汇编
  *
  * 完整的编译流程：
  * 1. 读取源文件
@@ -431,12 +625,11 @@ CodegenOptions LLVMIRGenerator::from_environment()
  * 3. 语法分析: 解析为 AST
  * 4. 语义分析: 检查程序结构
  * 5. 生成临时 C 代码
- * 6. 调用 clang 发射 LLVM IR
- * 7. 清理和规范化 IR
+ * 6. 调用 clang 发射 RISC-V 汇编
  * 8. 输出到目标文件
  *
  * @param input_path 输入源文件路径 (testfile.txt)
- * @param output_path 输出 IR 文件路径 (output.ll)
+ * @param output_path 输出汇编文件路径 (output.s)
  * @param options 代码生成选项
  * @param error_message 错误信息输出参数
  * @return 成功返回 true，失败返回 false
@@ -555,8 +748,7 @@ bool LLVMIRGenerator::generate_from_file(const std::string &input_path,
 		}
 
 		temp << build_driver_prelude();
-		temp << stripped_source;
-		temp << build_main_wrapper();
+		temp << suffix_float_literals(stripped_source);
 		temp.close();
 
 		/** 步骤 7: 查找 clang 可执行文件 */
@@ -571,12 +763,20 @@ bool LLVMIRGenerator::generate_from_file(const std::string &input_path,
 			return false;
 		}
 
-		/** 步骤 8: 调用 clang 编译为 LLVM IR */
+		/** 步骤 8: 调用 clang 编译为 RISC-V 汇编 */
 		std::ostringstream cmd;
-		cmd << clang_exe
-			<< " -S -emit-llvm -x c"
-			<< " " << temp_source_file
-			<< " -o " << output_path
+		cmd << quote_arg(clang_exe)
+			<< " -S -x c"
+			<< " -w"
+			<< " " << quote_arg(temp_source_file)
+			<< " -o " << quote_arg(output_path)
+			<< " --target=riscv64-linux-gnu"
+			<< " -march=rv64gc"
+			<< " -mabi=lp64d"
+			<< " -mcmodel=medany"
+			<< " -ffp-contract=off"
+			<< " -fno-fast-math"
+			<< " -fno-addrsig"
 			<< " -O" << (options.enable_optimizations ? options.optimization_level : 0);
 
 		const int status = run_command(cmd.str());
@@ -589,42 +789,40 @@ bool LLVMIRGenerator::generate_from_file(const std::string &input_path,
 		if (status != 0)
 		{
 			report_stage_error("translator",
-				"clang failed while generating LLVM IR from temporary source: " + temp_source_file +
+				"clang failed while generating RISC-V assembly from temporary source: " + temp_source_file +
 				" (clang=" + clang_exe + ")");
 			return false;
 		}
 
-		/** 步骤 9: 读取生成的 IR */
-		std::ifstream generated_ir(output_path.c_str(), std::ios::binary);
-		if (!generated_ir.is_open())
+		std::ifstream generated_assembly(output_path.c_str(), std::ios::binary);
+		if (!generated_assembly.is_open())
 		{
-			report_stage_error("translator", "Generated LLVM IR file is missing: " + output_path);
+			report_stage_error("translator", "Generated assembly file is missing: " + output_path);
 			return false;
 		}
 
-		std::ostringstream ir_buffer;
-		ir_buffer << generated_ir.rdbuf();
-		generated_ir.close();
+		std::ostringstream assembly_buffer;
+		assembly_buffer << generated_assembly.rdbuf();
+		generated_assembly.close();
 
-		/** 步骤 10: 规范化 IR - 移除主机特定信息 */
-		std::ofstream normalized_ir(output_path.c_str(), std::ios::binary | std::ios::trunc);
-		if (!normalized_ir.is_open())
+		std::ofstream normalized_assembly(output_path.c_str(), std::ios::binary | std::ios::trunc);
+		if (!normalized_assembly.is_open())
 		{
-			report_stage_error("translator", "Failed to normalize LLVM IR file: " + output_path);
+			report_stage_error("translator", "Failed to normalize assembly file: " + output_path);
 			return false;
 		}
 
-		normalized_ir << strip_host_specific_llvm_module_lines(ir_buffer.str());
-		normalized_ir.close();
+		normalized_assembly << strip_incompatible_asm_directives(assembly_buffer.str());
+		normalized_assembly.close();
 	}
 	catch (const std::exception &e)
 	{
-		report_stage_error("translator", std::string("Exception during LLVM IR translation: ") + e.what());
+		report_stage_error("translator", std::string("Exception during RISC-V assembly translation: ") + e.what());
 		return false;
 	}
 	catch (...)
 	{
-		report_stage_error("translator", "Unknown exception during LLVM IR translation.");
+		report_stage_error("translator", "Unknown exception during RISC-V assembly translation.");
 		return false;
 	}
 
