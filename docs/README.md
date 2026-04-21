@@ -13,6 +13,7 @@
 ## 实现（Implementation）
 
 - `implementation/`：各组件实现详细文档
+- `implementation-current/`：当前版本实现说明（lexer / parser / codegen / tools）
 
 ## Superpowers
 
