@@ -71,7 +71,7 @@ LLVM IR is the official intermediate representation. The project will implement 
 - `BasicBlock`: label, ordered instructions, predecessor/successor lists.
 - `Instruction`: alloca, load, store, getelementptr, binary arithmetic, integer/floating comparisons, type conversion, call, branch, conditional branch, and return.
 
-The IR printer must emit textual LLVM IR accepted by `lli`/`llvm-link` in the coursework environment. Runtime functions are declared, not defined, so generated `output.ll` can link with the provided runtime. In intermediate-code mode, this task variant expects `main`'s return value to be visible in stdout, so IR generation will emit a runtime output call for the returned integer before the final `ret`. Final-code mode preserves normal program stdout and uses `main`'s return value as the process exit code.
+The IR printer must emit textual LLVM IR accepted by `lli`/`llvm-link` in the coursework environment. Runtime functions are declared, not defined, so generated `output.ll` can link with the provided runtime. In intermediate-code mode, this task variant expects `main`'s return value to be visible in stdout, so IR generation will run with an `emit_main_return_value` option. With that option enabled, every `return Exp;` inside `main` lowers to: evaluate `Exp` once, call `putint` with that value, then `ret i32` with the same value. The output call should not add an implicit newline. Final-code mode disables this option, preserves normal program stdout, and uses `main`'s return value only as the process exit code.
 
 ## LLVM IR Generation
 
@@ -85,6 +85,7 @@ IR generation is syntax-directed from the semantically checked AST:
 - `&&` and `||` generate short-circuit control-flow blocks, not eager binary operations.
 - `if`, `while`, `break`, and `continue` generate explicit basic blocks and branches.
 - Format-string output is lowered either to `putf` with a string constant and arguments, or split into runtime output calls if needed for compatibility.
+- Intermediate-code mode applies the `main` return-value output specialization during `return` lowering; final-code mode uses ordinary `ret` lowering.
 - Type conversions use `sitofp`, `fptosi`, and appropriate compare/result conversions.
 
 ## CFG, Data Flow, And Optimization
