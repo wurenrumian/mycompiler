@@ -1,7 +1,7 @@
+#include <fstream>
 #include <iostream>
 #include <string>
 #include "Codegen.h"
-
 namespace
 {
 	void print_usage()
@@ -49,17 +49,45 @@ int main(int argc, char **argv)
 
 	if (!emit_assembly || input_filename.empty() || output_filename.empty())
 	{
+		if (argc == 1)
+		{
+			try
+			{
+				CompilerPipeline pipeline;
+                CodegenOptions options = CompilerPipeline::from_environment();
+                std::string error;
+                if (!pipeline.emit_llvm_ir_from_file("testfile.txt", "output.ll", options, &error))
+                {
+                    if (!error.empty())
+                    {
+                        std::cerr << error << std::endl;
+                    }
+                    return 1;
+                }
+                return 0;
+			}
+			catch (const std::exception &e)
+			{
+				std::cerr << "Error: " << e.what() << std::endl;
+				return 1;
+			}
+		}
+
 		print_usage();
 		return 1;
 	}
 
 	try
 	{
-		const CodegenOptions options = LLVMIRGenerator::from_environment();
-		LLVMIRGenerator generator;
+		const CodegenOptions options = CompilerPipeline::from_environment();
+		CompilerPipeline pipeline;
 		std::string error;
-		if (!generator.generate_from_file(input_filename, output_filename, options, &error))
+		if (!pipeline.emit_assembly_from_file(input_filename, output_filename, options, &error))
 		{
+            if (!error.empty())
+            {
+                std::cerr << error << std::endl;
+            }
 			return 1;
 		}
 

@@ -46,4 +46,9 @@ homework/
 **/*.zip
 public/
 pack_src.ps1
-docs/superpowers/
+docs/superpowers/*
+task/*
+$tmp/
+__tmp_*
+.pack_ir_submission_tmp/
+.pack_riscv_submission_tmp/

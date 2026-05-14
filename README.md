@@ -1,6 +1,6 @@
 # CMM Compiler - SysY2022 到 RISC-V 汇编编译器
 
-本项目实现 SysY2022 语言的词法分析、语法分析、语义检查与代码生成，输出 RISC-V64 汇编。
+本项目实现 SysY2022 语言的词法分析、语法分析、语义检查、中间 LLVM IR 生成与 RISC-V64 汇编生成。
 
 ## 项目结构
 
@@ -57,7 +57,16 @@ cd build
 ./lexer ../testfile.txt
 ```
 
-### 运行 Homework 2/3（语法分析 + RISC-V 汇编生成）
+### 运行 Homework 2/3（中间代码 + RISC-V 汇编生成）
+
+中间代码模式：
+
+```bash
+cd build
+./parser
+# 读取 build/testfile.txt
+# 生成 output.ll
+```
 
 命令行与评测对齐：
 
@@ -68,11 +77,14 @@ cd build
 
 输出文件：`testcase.s`
 
-可选优化开关（为后续优化作业预留）：
+`compiler` 现在走项目内流水线：
 
-- `MYCOMPILER_OPT_LEVEL=0~3`：控制生成汇编时传给 clang 的优化等级（默认 0）
-- `MYCOMPILER_KEEP_TEMP=1`：保留中间 C 临时文件，便于调试
-- `LLVM_CLANG=<clang 可执行文件>`：指定 clang 路径
+- 解析
+- 语义分析
+- in-memory LLVM IR 构建
+- 自写 RISC-V64 backend
+
+不会调用 `clang`、`llc`、`opt` 或 LLVM 库替你完成最终代码生成。
 
 ## 实现说明
 
@@ -127,20 +139,22 @@ ctest --output-on-failure    # 运行所有测试
 
 ## 提测前自检脚本
 
-公开样例批量编译检查（只检查 `compiler -S -o` 是否成功生成非空 `.s`）：
+中间代码公开集：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File tests/test_public.ps1
+powershell -ExecutionPolicy Bypass -File tests/test_public_ir.ps1 -StartCase 1 -EndCase 40
 ```
 
-```bash
-bash tests/test_public.sh
-```
-
-浮点路径快速检查（确认关键探针不走 `fadd.d/fcvt.d.s` 双精度路径）：
+最终代码公开集：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File tests/check_float_probe.ps1
+powershell -ExecutionPolicy Bypass -File tests/test_public_riscv.ps1
+```
+
+按用例筛查最终代码问题：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tests/test_public_riscv_cases.ps1 -Cases D:\Project\mycompile\public\functional_hard\51_short_circuit3.sy
 ```
 
 ## 注意事项

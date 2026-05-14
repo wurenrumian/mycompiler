@@ -133,9 +133,9 @@ void test_lexer_strings()
 	Lexer lexer("test_lexer3.txt");
 	Token token;
 
-	// putf
+	// putf is treated as the SysY formatted-output builtin.
 	token = lexer.next_token();
-	assert(token.type == TokenType::IDENFR && token.lexeme == "putf");
+	assert(token.type == TokenType::PRINTFTK && token.lexeme == "putf");
 
 	// (
 	token = lexer.next_token();

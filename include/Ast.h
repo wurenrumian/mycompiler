@@ -1,107 +1,400 @@
 #pragma once
 
-/**
- * @file Ast.h
- * @brief 抽象语法树 (Abstract Syntax Tree, AST) 节点定义
- *
- * 本模块定义了编译器前端的 AST 数据结构。
- * AST 是词法分析和语法分析完成后，源代码的树状中间表示形式。
- *
- * 设计说明：
- * - CompUnit (编译单元) 是 AST 的根节点，包含多个顶层声明项
- * - ItemKind 枚举区分声明、函数定义和主函数定义
- * - Item 结构体存储每种顶层元素的类型和名称信息
- *
- * 使用场景：
- * - Bison 语法分析器在归约过程中构建 AST 节点
- * - 语义分析器遍历 AST 进行类型检查和符号表管理
- * - 代码生成器基于 AST 生成目标代码
- */
-
 #include <memory>
 #include <string>
 #include <vector>
 
 namespace ast
 {
-/**
- * @brief 顶层元素的种类枚举
- *
- * 用于区分编译单元中的不同类型顶层元素：
- * - Decl: 全局变量/常量声明
- * - FuncDef: 普通函数定义
- * - MainFuncDef: 主函数定义 (必须恰好有一个)
- */
 enum class ItemKind
 {
-	Decl,       /**< 全局声明 (变量/常量) */
-	FuncDef,    /**< 函数定义 */
-	MainFuncDef /**< 主函数定义 (int main) */
+	Decl,
+	FuncDef,
+	MainFuncDef
 };
 
-/**
- * @brief 顶层元素结构体
- *
- * 表示编译单元中的一个顶层元素，
- * 包含元素种类和名称信息。
- */
-struct Item
+enum class NodeKind
 {
-	ItemKind kind;     /**< 元素种类 */
-	std::string name;  /**< 元素名称 (MainFuncDef 固定为 "main") */
+	Decl,
+	FunctionDef,
+	Block,
+	Stmt,
+	Expr
+};
 
-	Item(ItemKind item_kind, const std::string &item_name)
-		: kind(item_kind), name(item_name)
+enum class TypeKind
+{
+	Void,
+	Int,
+	Float
+};
+
+enum class UnaryOp
+{
+	Plus,
+	Minus,
+	Not
+};
+
+enum class BinaryOp
+{
+	Add,
+	Sub,
+	Mul,
+	Div,
+	Mod,
+	Lt,
+	Gt,
+	Le,
+	Ge,
+	Eq,
+	Ne,
+	And,
+	Or
+};
+
+enum class StmtKind
+{
+	Empty,
+	Expr,
+	Assign,
+	Block,
+	If,
+	While,
+	Break,
+	Continue,
+	Return,
+	FormatOutput
+};
+
+enum class ExprKind
+{
+	IntLiteral,
+	FloatLiteral,
+	LValue,
+	Call,
+	Unary,
+	Binary
+};
+
+struct Type
+{
+	TypeKind kind;
+	std::vector<int> dimensions;
+	bool is_array_param;
+
+	Type();
+
+	static Type void_type();
+	static Type int_type();
+	static Type float_type();
+};
+
+struct Node
+{
+	virtual ~Node() {}
+	virtual NodeKind kind() const = 0;
+};
+
+struct Expr : Node
+{
+	Type inferred_type;
+
+	NodeKind kind() const override
 	{
+		return NodeKind::Expr;
+	}
+
+	virtual ExprKind expr_kind() const = 0;
+};
+
+struct BlockItem : Node
+{
+	virtual ~BlockItem() {}
+};
+
+struct Stmt : BlockItem
+{
+	NodeKind kind() const override
+	{
+		return NodeKind::Stmt;
+	}
+
+	virtual StmtKind stmt_kind() const = 0;
+};
+
+struct InitVal
+{
+	bool is_list;
+	std::unique_ptr<Expr> expr;
+	std::vector<InitVal> elements;
+
+	InitVal();
+};
+
+struct VarDef
+{
+	std::string name;
+	std::vector<std::unique_ptr<Expr> > dimensions;
+	bool has_init;
+	InitVal init;
+
+	VarDef();
+};
+
+struct Decl : BlockItem
+{
+	bool is_const;
+	Type base_type;
+	std::vector<VarDef> defs;
+
+	Decl();
+
+	NodeKind kind() const override
+	{
+		return NodeKind::Decl;
 	}
 };
 
-/**
- * @brief 编译单元结构体 (AST 根节点)
- *
- * 表示一个完整的 SysY 程序，包含所有的顶层元素列表。
- * SysY 语法要求： CompUnit → {Decl} {FuncDef} MainFuncDef
- */
-struct CompUnit
+struct Param
 {
-	std::vector<Item> items;  /**< 顶层元素列表 */
+	Type type;
+	std::string name;
+	std::vector<std::unique_ptr<Expr> > array_dimensions_after_first;
+
+	Param();
 };
 
-/**
- * @brief 重置 AST 根节点
- *
- * 在开始新的解析前调用，清空全局 AST 根节点，
- * 避免残留之前解析的结果。
- */
+struct Block : Stmt
+{
+	std::vector<std::unique_ptr<BlockItem> > items;
+
+	StmtKind stmt_kind() const override
+	{
+		return StmtKind::Block;
+	}
+
+	NodeKind kind() const override
+	{
+		return NodeKind::Block;
+	}
+};
+
+struct FunctionDef : Node
+{
+	Type return_type;
+	std::string name;
+	std::vector<Param> params;
+	std::unique_ptr<Block> body;
+
+	FunctionDef();
+
+	NodeKind kind() const override
+	{
+		return NodeKind::FunctionDef;
+	}
+};
+
+struct IntLiteral : Expr
+{
+	long long value;
+
+	IntLiteral();
+
+	ExprKind expr_kind() const override
+	{
+		return ExprKind::IntLiteral;
+	}
+};
+
+struct FloatLiteral : Expr
+{
+	double value;
+	std::string raw;
+
+	FloatLiteral();
+
+	ExprKind expr_kind() const override
+	{
+		return ExprKind::FloatLiteral;
+	}
+};
+
+struct LValueExpr : Expr
+{
+	std::string name;
+	std::vector<std::unique_ptr<Expr> > indices;
+
+	ExprKind expr_kind() const override
+	{
+		return ExprKind::LValue;
+	}
+};
+
+struct CallExpr : Expr
+{
+	std::string callee;
+	std::vector<std::unique_ptr<Expr> > args;
+
+	ExprKind expr_kind() const override
+	{
+		return ExprKind::Call;
+	}
+};
+
+struct UnaryExpr : Expr
+{
+	UnaryOp op;
+	std::unique_ptr<Expr> operand;
+
+	UnaryExpr();
+
+	ExprKind expr_kind() const override
+	{
+		return ExprKind::Unary;
+	}
+};
+
+struct BinaryExpr : Expr
+{
+	BinaryOp op;
+	std::unique_ptr<Expr> lhs;
+	std::unique_ptr<Expr> rhs;
+
+	BinaryExpr();
+
+	ExprKind expr_kind() const override
+	{
+		return ExprKind::Binary;
+	}
+};
+
+struct ExprStmt : Stmt
+{
+	std::unique_ptr<Expr> expr;
+
+	StmtKind stmt_kind() const override
+	{
+		return StmtKind::Expr;
+	}
+};
+
+struct AssignStmt : Stmt
+{
+	std::unique_ptr<LValueExpr> target;
+	std::unique_ptr<Expr> value;
+
+	StmtKind stmt_kind() const override
+	{
+		return StmtKind::Assign;
+	}
+};
+
+struct IfStmt : Stmt
+{
+	std::unique_ptr<Expr> condition;
+	std::unique_ptr<Stmt> then_branch;
+	std::unique_ptr<Stmt> else_branch;
+
+	StmtKind stmt_kind() const override
+	{
+		return StmtKind::If;
+	}
+};
+
+struct WhileStmt : Stmt
+{
+	std::unique_ptr<Expr> condition;
+	std::unique_ptr<Stmt> body;
+
+	StmtKind stmt_kind() const override
+	{
+		return StmtKind::While;
+	}
+};
+
+struct BreakStmt : Stmt
+{
+	StmtKind stmt_kind() const override
+	{
+		return StmtKind::Break;
+	}
+};
+
+struct ContinueStmt : Stmt
+{
+	StmtKind stmt_kind() const override
+	{
+		return StmtKind::Continue;
+	}
+};
+
+struct ReturnStmt : Stmt
+{
+	std::unique_ptr<Expr> value;
+
+	StmtKind stmt_kind() const override
+	{
+		return StmtKind::Return;
+	}
+};
+
+struct EmptyStmt : Stmt
+{
+	StmtKind stmt_kind() const override
+	{
+		return StmtKind::Empty;
+	}
+};
+
+struct FormatOutputStmt : Stmt
+{
+	std::string format;
+	std::vector<std::unique_ptr<Expr> > args;
+
+	StmtKind stmt_kind() const override
+	{
+		return StmtKind::FormatOutput;
+	}
+};
+
+struct CompUnit
+{
+	std::vector<std::unique_ptr<Node> > items;
+};
+
+std::unique_ptr<FunctionDef> make_function(const Type &return_type,
+					   const std::string &name,
+					   std::vector<Param> params,
+					   std::unique_ptr<Block> body);
+std::unique_ptr<Block> make_block(std::vector<std::unique_ptr<BlockItem> > items);
+
+Expr *make_int_literal(const std::string &text);
+Expr *make_float_literal(const std::string &text);
+LValueExpr *make_lvalue(const std::string &name, std::vector<Expr *> *indices);
+Expr *make_call(const std::string &callee, std::vector<Expr *> *args);
+Expr *make_unary(UnaryOp op, Expr *operand);
+Expr *make_binary(BinaryOp op, Expr *lhs, Expr *rhs);
+InitVal *make_init_expr(Expr *expr);
+InitVal *make_init_list(std::vector<InitVal *> *elements);
+VarDef *make_var_def(const std::string &name, std::vector<Expr *> *dimensions, InitVal *init);
+Decl *make_decl(bool is_const, Type *base_type, std::vector<VarDef *> *defs);
+Param *make_param(Type *type, const std::string &name, bool is_array_param, std::vector<Expr *> *dimensions_after_first);
+Block *make_block_node(std::vector<BlockItem *> *items);
+Stmt *make_expr_stmt(Expr *expr);
+Stmt *make_assign_stmt(LValueExpr *target, Expr *value);
+Stmt *make_if_stmt(Expr *condition, Stmt *then_branch, Stmt *else_branch);
+Stmt *make_while_stmt(Expr *condition, Stmt *body);
+Stmt *make_break_stmt();
+Stmt *make_continue_stmt();
+Stmt *make_return_stmt(Expr *value);
+Stmt *make_empty_stmt();
+Stmt *make_format_output_stmt(const std::string &format, std::vector<Expr *> *args);
+FunctionDef *make_function_node(Type *return_type, const std::string &name, std::vector<Param *> *params, Block *body);
+void push_ast_node(Node *node);
+
 void reset_ast_root();
-
-/**
- * @brief 向 AST 添加一个顶层元素
- *
- * Bison 语法分析器在归约 Unit 产生式时调用此函数，
- * 将新的声明、函数定义或主函数添加到 AST 中。
- *
- * @param kind 元素的种类
- * @param name 元素的名称 (主函数固定传 "main")
- */
 void push_ast_item(ItemKind kind, const std::string &name);
-
-/**
- * @brief 获取并转移 AST 根节点所有权
- *
- * 解析完成后调用此函数获取唯一的 AST 根节点指针。
- * 调用后内部状态被清空，调用者获得 AST 的完全所有权。
- *
- * @return 唯一的 AST 根节点智能指针
- */
 std::unique_ptr<CompUnit> take_ast_root();
-
-/**
- * @brief 窥视 AST 根节点 (不转移所有权)
- *
- * 用于调试和测试，在不转移所有权的情况下查看 AST。
- *
- * @return AST 根节点的原始指针，如果不存在则返回 nullptr
- */
 const CompUnit *peek_ast_root();
 } // namespace ast

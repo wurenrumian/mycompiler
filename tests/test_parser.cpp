@@ -1136,6 +1136,30 @@ void test_parser_frontend_api()
 	std::cout << "[PASS] test_parser_frontend_api" << std::endl;
 }
 
+void test_parser_ast_function_body()
+{
+	const std::string filename = "test_parser_ast_body.txt";
+	const std::string content = "int main() {\n"
+					  "    int x = 1 + 2 * 3;\n"
+					  "    return x;\n"
+					  "}";
+	create_test_file(filename, content);
+
+	std::unique_ptr<ast::CompUnit> root;
+	std::string error;
+	require_true(parse_file_to_ast(filename, &root, &error), "parse_file_to_ast returned false for ast body case");
+	require_true(root.get() != nullptr, "ast body case root is null");
+	require_true(root->items.size() == 1, "ast body case expected one top-level item");
+
+	const ast::FunctionDef *main_fn = dynamic_cast<const ast::FunctionDef *>(root->items[0].get());
+	require_true(main_fn != nullptr, "ast body case top-level node is not FunctionDef");
+	require_true(main_fn->body.get() != nullptr, "ast body case function body is null");
+	require_true(main_fn->body->items.size() == 2, "ast body case expected decl + return in function body");
+
+	delete_test_file(filename);
+	std::cout << "[PASS] test_parser_ast_function_body" << std::endl;
+}
+
 void test_parser_float_decl_and_return()
 {
 	std::string content = "float addf(float a, float b) {\n"
@@ -1175,6 +1199,7 @@ int main()
 		std::cout << "test_parser_output_format" << std::endl;
 		test_parser_output_format();
 		test_parser_frontend_api();
+		test_parser_ast_function_body();
 		test_parser_float_decl_and_return();
 		test_parser_float_const_init();
 

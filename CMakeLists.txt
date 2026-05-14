@@ -34,11 +34,15 @@ target_include_directories(lexer PRIVATE
 )
 target_compile_definitions(lexer PRIVATE YY_NO_UNISTD_H)
 
-set(COMPILER_CORE_SOURCES
-    src/parser_main.cpp
+set(COMPILER_COMMON_SOURCES
     src/Ast.cpp
     src/ParserFrontend.cpp
     src/Semantic.cpp
+    src/Ir.cpp
+    src/IrPrinter.cpp
+    src/IrBuilder.cpp
+    src/IrText.cpp
+    src/RiscVBackend.cpp
     src/Codegen.cpp
     ${BISON_SysYParser_OUTPUTS}
     src/Token.cpp
@@ -48,7 +52,10 @@ set(COMPILER_CORE_SOURCES
 # ============================================
 # Homework 2/3: 语法分析+代码生成器
 # ============================================
-add_executable(parser ${COMPILER_CORE_SOURCES})
+add_executable(parser
+    src/parser_main.cpp
+    ${COMPILER_COMMON_SOURCES}
+)
 target_include_directories(parser PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -56,7 +63,10 @@ target_include_directories(parser PRIVATE
 )
 target_compile_definitions(parser PRIVATE YY_NO_UNISTD_H ENABLE_PARSER_OUTPUT=1)
 
-add_executable(compiler ${COMPILER_CORE_SOURCES})
+add_executable(compiler
+    src/compiler_main.cpp
+    ${COMPILER_COMMON_SOURCES}
+)
 target_include_directories(compiler PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -137,21 +147,67 @@ target_include_directories(test_codegen PRIVATE
 )
 target_compile_definitions(test_codegen PRIVATE YY_NO_UNISTD_H)
 add_test(NAME test_codegen COMMAND test_codegen)
-# Parser分段调试测试
-add_executable(test_parser_debug
-    tests/test_parser_debug.cpp
+
+add_executable(test_ir_generation
+    tests/test_ir_generation.cpp
+    src/Ir.cpp
+    src/IrPrinter.cpp
+    src/IrBuilder.cpp
+    src/ParserFrontend.cpp
+    ${BISON_SysYParser_OUTPUTS}
+    src/Ast.cpp
+    src/Token.cpp
+    src/Lexer.cpp
 )
-target_include_directories(test_parser_debug PRIVATE
+target_include_directories(test_ir_generation PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_BINARY_DIR}
 )
-target_compile_definitions(test_parser_debug PRIVATE YY_NO_UNISTD_H)
-add_test(NAME test_parser_debug COMMAND test_parser_debug)
+target_compile_definitions(test_ir_generation PRIVATE YY_NO_UNISTD_H)
+add_test(NAME test_ir_generation COMMAND test_ir_generation)
+add_executable(test_ir_text
+    tests/test_ir_text.cpp
+    src/Ir.cpp
+    src/IrText.cpp
+)
+target_include_directories(test_ir_text PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_compile_definitions(test_ir_text PRIVATE YY_NO_UNISTD_H)
+add_test(NAME test_ir_text COMMAND test_ir_text)
+add_executable(test_riscv_backend
+    tests/test_riscv_backend.cpp
+    src/Ir.cpp
+    src/IrText.cpp
+    src/RiscVBackend.cpp
+)
+target_include_directories(test_riscv_backend PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_compile_definitions(test_riscv_backend PRIVATE YY_NO_UNISTD_H)
+add_test(NAME test_riscv_backend COMMAND test_riscv_backend)
+add_executable(test_ast_semantic
+    tests/test_ast_semantic.cpp
+    src/Ast.cpp
+    src/ParserFrontend.cpp
+    src/Semantic.cpp
+    ${BISON_SysYParser_OUTPUTS}
+    src/Token.cpp
+    src/Lexer.cpp
+)
+target_include_directories(test_ast_semantic PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_BINARY_DIR}
+)
+target_compile_definitions(test_ast_semantic PRIVATE YY_NO_UNISTD_H)
+add_test(NAME test_ast_semantic COMMAND test_ast_semantic)
 
 
 # 运行所有测试的便捷目标
 add_custom_target(run_all_tests
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS test_stream test_token test_lexer test_parser test_codegen test_parser_debug
+    DEPENDS test_stream test_token test_lexer test_parser test_codegen test_ast_semantic test_ir_generation
     COMMENT "Running all unit tests..."
 )
